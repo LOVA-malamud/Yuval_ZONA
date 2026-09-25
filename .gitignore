@@ -1,0 +1,10 @@
+.godot/
+*.tmp
+*.pyc
+__pycache__/
+.DS_Store
+builds/
+
+# Reproducible captures, engine logs and simulation reports are local test output.
+tests/artifacts/*
+!tests/artifacts/.gitkeep

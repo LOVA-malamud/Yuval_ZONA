@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"ranged"
+display_name = "UNIT_RANGED"
+money_cost = 75
+max_health = 70.0
+damage = 14.0
+move_speed = 95.0
+attack_range = 180.0
+attack_cooldown = 1.1
+detection_range = 310.0
+body_radius = 12.0

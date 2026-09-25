@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UpgradeDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/upgrade_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"king_attack_speed"
+display_name = "UPGRADE_KING_ATTACK_SPEED"
+category = "king"
+stat = &"king_attack_speed"
+base_cost = 45
+cost_growth = 1.55
+amount = 0.2
+maximum_level = 8
+unit = "STAT_RATE"

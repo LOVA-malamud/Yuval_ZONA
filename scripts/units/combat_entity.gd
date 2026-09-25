@@ -1,0 +1,188 @@
+class_name CombatEntity
+extends Node2D
+## Shared targeting, friendly-fire guard, damage, death and procedural presentation.
+## All moving entities share terrain-safe pathing; actors do not form solid roadblocks.
+
+signal died(entity: CombatEntity)
+
+var team: GameTeam
+var game = null
+var max_health: float = 100.0
+var health: float = 100.0
+var damage: float = 10.0
+var structure_damage_multiplier: float = 1.0
+var move_speed: float = 100.0
+var attack_range: float = 30.0
+var attack_cooldown: float = 1.0
+var detection_range: float = 260.0
+var body_radius: float = 13.0
+var cooldown: float = 0.0
+var alive: bool = true
+var kind: StringName = &"melee"
+var shot_time: float = 0.0
+var shot_end: Vector2
+var travel_path := PackedVector2Array()
+var path_goal := Vector2(INF, INF)
+var blocked_time: float = 0.0
+var hit_flash: float = 0.0
+var visual_time: float = 0.0
+const ART = preload("res://scripts/visuals/entity_art.gd")
+
+
+func _ready() -> void:
+	add_to_group("combatants")
+	game.spawn_effect(global_position, team.color, "spawn")
+	queue_redraw()
+
+
+func configure(owner_team: GameTeam, manager, data: UnitStats = null) -> void:
+	team = owner_team
+	game = manager
+	if data != null:
+		kind = data.id
+		max_health = data.max_health
+		damage = data.damage
+		structure_damage_multiplier = data.structure_damage_multiplier
+		move_speed = data.move_speed
+		attack_range = data.attack_range
+		attack_cooldown = data.attack_cooldown
+		detection_range = data.detection_range
+		body_radius = data.body_radius
+	health = max_health
+
+
+func tick(delta: float) -> void:
+	visual_time += delta
+	hit_flash = maxf(0.0, hit_flash - delta)
+	cooldown = maxf(0.0, cooldown - delta)
+	shot_time = maxf(0.0, shot_time - delta)
+	queue_redraw()
+
+
+func valid_enemy(candidate) -> bool:
+	return (
+		is_instance_valid(candidate) and candidate.alive and team.is_enemy(candidate.team.team_id)
+	)
+
+
+func closest_enemy(radius: float) -> CombatEntity:
+	var best: CombatEntity = null
+	var best_distance: float = radius
+	for node in get_tree().get_nodes_in_group("combatants"):
+		var candidate := node as CombatEntity
+		if not valid_enemy(candidate):
+			continue
+		var distance: float = edge_distance(candidate)
+		if distance <= best_distance and game.navigation.clear_line(global_position, candidate.global_position):
+			best_distance = distance
+			best = candidate
+	return best
+
+
+func edge_distance(other: CombatEntity) -> float:
+	return maxf(
+		0.0, global_position.distance_to(other.global_position) - body_radius - other.body_radius
+	)
+
+
+func attack(target: CombatEntity) -> void:
+	if not alive or cooldown > 0.0 or not valid_enemy(target):
+		return
+	if edge_distance(target) > attack_range or not game.navigation.clear_line(global_position, target.global_position):
+		return
+	cooldown = attack_cooldown
+	shot_time = 0.22
+	shot_end = target.global_position
+	var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
+	target.take_damage(dealt, team.team_id)
+
+
+func take_damage(amount: float, attacker_team_id: int) -> void:
+	if not alive or not team.is_enemy(attacker_team_id) or amount <= 0.0:
+		return
+	hit_flash = 0.16
+	health = maxf(0.0, health - amount)
+	if health <= 0.0:
+		die()
+	queue_redraw()
+
+
+func die() -> void:
+	game.spawn_effect(global_position, team.color, "death")
+	alive = false
+	remove_from_group("combatants")
+	died.emit(self)
+	queue_free()
+
+
+func travel_toward(destination: Vector2, delta: float) -> void:
+	# A cached path may be stale after a respawn or a moving target changes direction.
+	var endpoint_reached: bool = travel_path.size() == 1 and global_position.distance_to(travel_path[0]) < 24.0
+	var segment_blocked: bool = not travel_path.is_empty() and not game.navigation.clear_line(global_position, travel_path[0], body_radius + 1.0)
+	if path_goal.distance_to(destination) > 40.0 or travel_path.is_empty() or segment_blocked or blocked_time > 0.75 or (endpoint_reached and path_goal.distance_to(destination) > 4.0):
+		path_goal = destination
+		travel_path = game.navigation.path(global_position, destination)
+		blocked_time = 0.0
+	while travel_path.size() > 1 and global_position.distance_to(travel_path[0]) < 22.0:
+		travel_path.remove_at(0)
+	if travel_path.is_empty():
+		return
+	var waypoint: Vector2 = travel_path[0]
+	# Skip grid corners only with full body clearance.
+	while travel_path.size() > 1 and game.navigation.clear_line(global_position, travel_path[1], body_radius + 8.0):
+		travel_path.remove_at(0)
+		waypoint = travel_path[0]
+	var heading: Vector2 = global_position.direction_to(waypoint)
+	var direction: Vector2 = (heading + game.separation_for(self)).limit_length(1.0)
+	var motion: Vector2 = direction * minf(move_speed * delta, global_position.distance_to(waypoint))
+	var before: Vector2 = global_position
+	global_position = game.navigation.move(global_position, motion, body_radius)
+	if before.distance_to(global_position) < move_speed * delta * 0.1 and before.distance_to(destination) > 30.0:
+		blocked_time += delta
+	else:
+		blocked_time = 0.0
+
+
+func _draw() -> void:
+	if team == null or not alive:
+		return
+	var tint: Color = team.color.lerp(Color.WHITE, hit_flash / 0.16 * 0.7)
+	ART.paint(self, kind, tint, visual_time * 6.0)
+	var width: float = 36.0
+	var bar_y: float = -39.0
+	if kind == &"king":
+		width = 98.0
+		bar_y = -88.0
+		draw_string(ThemeDB.fallback_font, Vector2(-100,-99), tr("KING_WORLD") % [tr(team.display_name).to_upper(), team.king_level()], HORIZONTAL_ALIGNMENT_CENTER, 200, 12, Color("f1db9f"))
+	elif kind == &"tower":
+		width = 54.0
+		bar_y = -90.0
+	elif kind == &"player":
+		width = 52.0
+		bar_y = -57.0
+		draw_arc(Vector2(0,5), 30, 0, TAU, 32, Color.WHITE if get("human_controlled") else tint, 2.5, true)
+		draw_string(ThemeDB.fallback_font, Vector2(-80,-69), str(get("commander_id")) + " · " + tr(str(get("commander_name"))), HORIZONTAL_ALIGNMENT_CENTER, 160, 13, Color.WHITE)
+		if get("human_controlled"):
+			draw_arc(Vector2(0,5),34,0,TAU,32,Color(0.04,0.09,0.12,0.9),3,true)
+			draw_rect(Rect2(-22,-101,44,18),ART.INK)
+			draw_string(ThemeDB.fallback_font,Vector2(-22,-87),tr("YOU_MARKER"),HORIZONTAL_ALIGNMENT_CENTER,44,14,Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([Vector2(-6,-86),Vector2(6,-86),Vector2(0,-78)]),Color.WHITE)
+	draw_rect(Rect2(-width/2-1, bar_y-1, width+2, 6), ART.INK)
+	draw_rect(Rect2(-width/2, bar_y, width, 4), Color("513d3b"))
+	draw_rect(Rect2(-width/2, bar_y, width * health / max_health, 4), tint)
+	if shot_time > 0.0:
+		var end: Vector2 = to_local(shot_end)
+		var progress: float = 1.0 - shot_time / 0.22
+		if kind in [&"ranged", &"tower", &"king"]:
+			var tip: Vector2 = end * progress
+			draw_line(tip - end.normalized() * (34 if kind == &"tower" else 20), tip, ART.GOLD, 4 if kind in [&"king", &"tower"] else 3, true)
+			if kind in [&"king", &"tower"]:
+				draw_circle(Vector2(0,-22),6*(shot_time/0.22),Color("ffe8a8"))
+			draw_circle(tip, 4 if kind == &"king" else 2, Color.WHITE)
+		else:
+			var angle: float = end.angle()
+			draw_arc(Vector2.ZERO, 39, angle-0.9+progress, angle+0.5+progress, 12, Color(1,0.92,0.7,shot_time/0.22), 4, true)
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_TRANSLATION_CHANGED:
+		queue_redraw()

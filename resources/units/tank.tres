@@ -1,0 +1,17 @@
+[gd_resource type="Resource" script_class="UnitStats" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/unit_stats.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"tank"
+display_name = "UNIT_TANK"
+money_cost = 115
+max_health = 400.0
+damage = 24.0
+move_speed = 78.0
+attack_range = 30.0
+attack_cooldown = 1.35
+detection_range = 260.0
+body_radius = 20.0
+structure_damage_multiplier = 1.75

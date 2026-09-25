@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="UpgradeDefinition" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/upgrade_definition.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+id = &"worker_gather"
+display_name = "UPGRADE_WORKER_GATHER"
+category = "worker"
+stat = &"worker_gather"
+base_cost = 45
+cost_growth = 1.55
+amount = 0.8
+maximum_level = 8
+unit = "STAT_GATHER"
