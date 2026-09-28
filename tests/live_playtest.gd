@@ -2,14 +2,15 @@ extends Node
 ## Input-driven integration scene for MCP. Leaves the normal match running on success.
 var game = null
 var failures: int = 0
-var saved_settings: String = ""
-var had_settings: bool = false
+var checks: int = 0
+const TEST_SETTINGS := "user://live_polish_test.cfg"
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_run.call_deferred()
 
 func check(ok: bool, message: String) -> void:
+	checks += 1
 	if ok:
 		print("LIVE PASS: ",message)
 	else:
@@ -17,9 +18,15 @@ func check(ok: bool, message: String) -> void:
 		push_error("LIVE FAIL: " + message)
 
 func _run() -> void:
-	had_settings = FileAccess.file_exists(Localization.SETTINGS_PATH)
-	if had_settings:
-		saved_settings = FileAccess.get_file_as_string(Localization.SETTINGS_PATH)
+	var original_path: String = GameSettings.storage_path
+	var original_locale: String = Localization.language
+	var original_preferences := [GameSettings.master_volume, GameSettings.sfx_volume, GameSettings.fullscreen, GameSettings.onboarding_enabled]
+	var original_bytes := FileAccess.get_file_as_bytes(original_path) if FileAccess.file_exists(original_path) else PackedByteArray()
+	GameSettings.storage_path = TEST_SETTINGS
+	if FileAccess.file_exists(TEST_SETTINGS):
+		DirAccess.remove_absolute(TEST_SETTINGS)
+	GameSettings.load_settings()
+	Localization.set_language("en", false)
 	game = load("res://scenes/main/main.tscn").instantiate()
 	get_tree().root.add_child(game)
 	get_tree().current_scene = game
@@ -44,7 +51,13 @@ func _run() -> void:
 	get_viewport().push_input(click, true)
 	await get_tree().create_timer(0.15).timeout
 	check(game.teams[0].combat_count == before+1,"Mouse click purchases a unit through shop")
-	game.hud._route_selected(0)
+	await click_control(game.hud.route_selector)
+	var route_popup: PopupMenu = game.hud.route_selector.get_popup()
+	for attempt in range(4):
+		if route_popup.get_focused_item() == 0:
+			break
+		await key_event(KEY_DOWN, route_popup)
+	await key_event(KEY_ENTER, route_popup)
 	check(game.selected_route == 0 and game.route_highlight > 0,"Route selector updates new-recruit orders")
 	var enemy = game.UNIT_SCENE.instantiate()
 	enemy.configure(game.teams[1],game,game.unit_data[&"tank"])
@@ -59,9 +72,10 @@ func _run() -> void:
 	enemy.free()
 	game.player.position = game.pads[0].position+Vector2(-45,0)
 	await get_tree().create_timer(0.2).timeout
-	game.hud.structure_button.pressed.emit()
+	await click_control(game.hud.structure_button)
 	check(game.pads[0].occupied(),"Context build button constructs tower")
-	game.hud.structure_button.pressed.emit()
+	await get_tree().create_timer(0.2).timeout
+	await click_control(game.hud.structure_button)
 	check(game.pads[0].tower.level == 2,"Context button upgrades owned tower")
 	var old_zoom: float = game.player.get_node("Camera2D").zoom.x
 	var wheel := InputEventMouseButton.new()
@@ -83,6 +97,23 @@ func _run() -> void:
 	await click_control(game.hud.settings_button)
 	check(is_instance_valid(game.hud.settings_panel), "Mouse opens Settings from pause")
 	await get_tree().create_timer(0.2,true).timeout
+	var settings = game.hud.settings_panel
+	await click_at(settings.master_slider.get_global_rect().position + Vector2(settings.master_slider.size.x * 0.3, settings.master_slider.size.y * 0.5))
+	check(GameSettings.master_volume > 0.2 and GameSettings.master_volume < 0.4, "Real mouse slider input changes Master volume immediately")
+	check(is_equal_approx(AudioServer.get_bus_volume_db(0), linear_to_db(GameSettings.master_volume)), "Master slider updates the actual mixer gain")
+	await click_at(settings.sfx_slider.get_global_rect().position + Vector2(settings.sfx_slider.size.x * 0.6, settings.sfx_slider.size.y * 0.5))
+	check(GameSettings.sfx_volume > 0.5 and GameSettings.sfx_volume < 0.7, "Real mouse slider input changes SFX volume")
+	await click_control(settings.onboarding_toggle)
+	check(not GameSettings.onboarding_enabled, "Mouse dismisses future guidance through Settings")
+	if "display" in OS.get_cmdline_user_args() and DisplayServer.get_name() != "headless":
+		await click_control(settings.fullscreen_toggle)
+		await get_tree().create_timer(1.0, true).timeout
+		check(GameSettings.fullscreen and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN, "Mouse applies native fullscreen mode")
+		print("LIVE DISPLAY before_return mode=", DisplayServer.window_get_mode(), " pref=", GameSettings.fullscreen, " size=", get_tree().root.size, " rect=", settings.fullscreen_toggle.get_global_rect())
+		await click_control(settings.fullscreen_toggle)
+		await get_tree().create_timer(1.0, true).timeout
+		print("LIVE DISPLAY after_return mode=", DisplayServer.window_get_mode(), " pref=", GameSettings.fullscreen, " size=", get_tree().root.size, " rect=", settings.fullscreen_toggle.get_global_rect())
+		check(not GameSettings.fullscreen and DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_WINDOWED, "Mouse returns from fullscreen to windowed mode")
 	var selector: OptionButton = game.hud.settings_panel.language_selector
 	await click_control(selector)
 	var popup: PopupMenu = selector.get_popup()
@@ -96,10 +127,20 @@ func _run() -> void:
 	await get_tree().process_frame
 	check(Localization.language == "ru" and game.hud.army_buttons[&"worker"].text.contains("Рабочий"), "Native language dropdown changes UI immediately")
 	var config := ConfigFile.new()
-	check(config.load(Localization.SETTINGS_PATH) == OK and config.get_value("interface", "language") == "ru", "Settings selection persists to disk")
+	check(config.load(TEST_SETTINGS) == OK and config.get_value("interface", "language") == "ru", "Settings selection persists to isolated disk path")
+	check(is_equal_approx(float(config.get_value("audio", "master")), GameSettings.master_volume) and not config.get_value("interface", "onboarding"), "Mouse volume and guidance selections persist together")
+	await click_control(find_button(settings, "RESET_DEFAULTS"))
+	check(Localization.language == "en" and GameSettings.onboarding_enabled and is_equal_approx(GameSettings.master_volume, 0.8), "Mouse reset restores default preferences and live English UI")
 	Input.parse_input_event(escape)
 	await get_tree().process_frame
 	check(not is_instance_valid(game.hud.settings_panel) and get_tree().paused, "Escape closes Settings without resuming match")
+	await click_control(find_button(game.hud.result_overlay, "HELP_BUTTON"))
+	check(is_instance_valid(game.hud.help_panel) and get_tree().paused, "Mouse opens optional guide from pause")
+	await click_control(game.hud.help_panel.next_button)
+	check(game.hud.help_panel.topic_index == 1, "Mouse navigates to recruitment guidance")
+	Input.parse_input_event(escape)
+	await get_tree().process_frame
+	check(not is_instance_valid(game.hud.help_panel) and get_tree().paused, "Escape closes guide while preserving pause")
 	Input.parse_input_event(escape)
 	await get_tree().process_frame
 	check(not get_tree().paused,"Escape resumes")
@@ -109,23 +150,33 @@ func _run() -> void:
 	game = get_tree().current_scene
 	check(game.commanders.size() == 4 and not game.match_finished,"Restart produces fresh four-commander match")
 	await capture_languages()
-	# The test restores the user's preference byte-for-byte, including a fresh install.
-	if had_settings:
-		var file := FileAccess.open(Localization.SETTINGS_PATH, FileAccess.WRITE)
-		file.store_string(saved_settings)
-		file.close()
-	else:
-		DirAccess.remove_absolute(Localization.SETTINGS_PATH)
-	Localization.load_preference()
-	print("LIVE PLAYTEST COMPLETE failures=",failures)
-	if failures > 0:
-		get_tree().quit(1)
+	GameSettings.storage_path = original_path
+	GameSettings.set_master_volume(original_preferences[0], false)
+	GameSettings.set_sfx_volume(original_preferences[1], false)
+	GameSettings.set_fullscreen(original_preferences[2], false)
+	GameSettings.set_onboarding_enabled(original_preferences[3], false)
+	Localization.set_language(original_locale, false)
+	DirAccess.remove_absolute(TEST_SETTINGS)
+	var final_bytes := FileAccess.get_file_as_bytes(original_path) if FileAccess.file_exists(original_path) else PackedByteArray()
+	check(original_bytes == final_bytes, "Live input suite leaves real developer settings byte-for-byte unchanged")
+	print("LIVE PLAYTEST COMPLETE checks=", checks, " failures=",failures)
+	if failures > 0 or "finish" in OS.get_cmdline_user_args():
+		game.process_mode = Node.PROCESS_MODE_DISABLED
+		AudioFeedback.stop_all()
+		await get_tree().create_timer(0.1, true).timeout
+		get_tree().quit(1 if failures > 0 else 0)
 
 
 func click_control(control: Control) -> void:
+	if control == null:
+		check(false, "Required live UI control exists")
+		return
+	await click_at(control.get_global_rect().get_center())
+
+func click_at(point: Vector2) -> void:
 	var event := InputEventMouseButton.new()
 	event.button_index = MOUSE_BUTTON_LEFT
-	event.position = control.get_global_rect().get_center()
+	event.position = point
 	event.pressed = true
 	get_viewport().push_input(event, true)
 	await get_tree().process_frame
@@ -133,6 +184,15 @@ func click_control(control: Control) -> void:
 	event.pressed = false
 	get_viewport().push_input(event, true)
 	await get_tree().process_frame
+
+func find_button(node: Node, key: String) -> Button:
+	if node is Button and node.text == key:
+		return node
+	for child in node.get_children():
+		var button := find_button(child, key)
+		if button != null:
+			return button
+	return null
 
 func key_event(code: Key, target: Window) -> void:
 	var event := InputEventKey.new()
@@ -147,6 +207,8 @@ func key_event(code: Key, target: Window) -> void:
 	await get_tree().process_frame
 
 func capture_languages() -> void:
+	if DisplayServer.get_name() == "headless":
+		return
 	var window := get_tree().root
 	game.hud._toggle_pause()
 	# Embedded editor play locks the window size. The standalone visual suite tests
@@ -157,5 +219,6 @@ func capture_languages() -> void:
 		RenderingServer.force_draw()
 		var picture: Image = window.get_texture().get_image()
 		check(picture.get_size() == window.size, "Live viewport pixels " + locale + " " + str(picture.get_size()))
-		picture.save_png("res:/" + "/tests/artifacts/mcp_live_" + locale + ".png")
+		var prefix: String = "review_live_" if "finish" in OS.get_cmdline_user_args() else "mcp_live_"
+		check(picture.save_png("res:/" + "/tests/artifacts/" + prefix + locale + ".png") == OK, "Live viewport capture saved in " + locale)
 	game.hud._toggle_pause()

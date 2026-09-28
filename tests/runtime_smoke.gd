@@ -154,5 +154,7 @@ func _run() -> void:
 	game.teams[0].king.take_damage(99999.0, 2)
 	check(game.hud.result_title.text == "DEFEAT", "Own King death shows defeat")
 	paused = false
+	root.get_node("AudioFeedback").stop_all()
+	await create_timer(0.1).timeout
 	print("Runtime smoke checks complete; failures: ", failures)
 	quit(1 if failures > 0 else 0)

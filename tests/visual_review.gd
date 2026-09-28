@@ -9,6 +9,7 @@ func _run() -> void:
 	var dimensions: PackedStringArray = (args[1] if args.size() > 1 else "1280x720").split("x")
 	var locale: String = args[2] if args.size() > 2 else "en"
 	root.get_node("Localization").set_language(locale, false)
+	root.get_node("GameSettings").set_onboarding_enabled(scenario == "guidance", false)
 	root.size = Vector2i(int(dimensions[0]), int(dimensions[1]))
 	root.content_scale_size = Vector2i(1280,720)
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
@@ -70,10 +71,16 @@ func _run() -> void:
 		await create_timer(0.1).timeout
 		game.teams[1 if scenario == "victory" else 0].king.take_damage(99999,1 if scenario == "victory" else 2)
 		await create_timer(1.1).timeout
-	if scenario in ["pause", "settings"]:
+	if scenario == "respawn":
+		game.player.take_damage(99999, 2)
+		# Let the 10 Hz HUD and 5 Hz strategic map observe the death before freezing.
+		await create_timer(0.25).timeout
+	if scenario in ["pause", "settings", "help"]:
 		game.hud._toggle_pause()
 	if scenario == "settings":
 		game.hud._open_settings()
+	if scenario == "help":
+		game.hud._open_help()
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	await process_frame
 	RenderingServer.force_draw()
@@ -88,6 +95,8 @@ func _run() -> void:
 	# Every visible control must fit inside the viewport.
 	var problems: int = _check_layout(game.hud.controls, root.get_visible_rect())
 	print("LAYOUT problems=", problems)
+	root.get_node("AudioFeedback").stop_all()
+	await create_timer(0.1, true).timeout
 	quit(1 if problems > 0 or error != OK else 0)
 
 func _check_layout(node: Node, bounds: Rect2) -> int:

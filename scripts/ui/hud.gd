@@ -30,13 +30,18 @@ var resource_flash: float = 0.0
 var previous_wallet := Vector2i.ZERO
 var resource_tween: Tween
 var king_bars: Array[ProgressBar] = []
-var controls_hint: Label
 var result_shade: ColorRect
 var settings_panel: Control
 var settings_button: Button
 var notice_key: String = ""
 var notice_arguments: Array = []
 var last_resource_gain := Vector2i.ZERO
+var help_panel: Control
+var guidance_panel: PanelContainer
+var guidance_text: Label
+var shop_state: Array = []
+var notice_priority: int = 0
+const ROLE_KEYS := {&"worker": "ROLE_WORKER", &"melee": "ROLE_MELEE", &"ranged": "ROLE_RANGED", &"tank": "ROLE_TANK"}
 
 
 func setup(manager, owner_team: GameTeam) -> void:
@@ -47,6 +52,7 @@ func setup(manager, owner_team: GameTeam) -> void:
 	_language_changed()
 	previous_wallet = Vector2i(team.money, team.wood)
 	team.resources_changed.connect(_resources_changed)
+	GameSettings.settings_changed.connect(_update_guidance)
 	_refresh()
 
 
@@ -63,6 +69,7 @@ func _button(text: String, action: Callable) -> Button:
 	button.custom_minimum_size.y = 62
 	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(action)
+	AudioFeedback.bind_button(button)
 	return button
 
 
@@ -146,9 +153,13 @@ func _build_interface() -> void:
 		column.add_child(meter)
 		king_bars.append(meter)
 	bar.add_child(_button("PAUSE_BUTTON", _toggle_pause))
+	var status_panel := PanelContainer.new()
+	controls.add_child(status_panel)
+	status_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	status_panel.position = Vector2(16, 102)
+	status_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	status_label = _label("", 14)
-	controls.add_child(status_label)
-	status_label.position = Vector2(24, 94)
+	status_panel.add_child(status_label)
 
 	var dock := PanelContainer.new()
 	controls.add_child(dock)
@@ -222,9 +233,8 @@ func _build_interface() -> void:
 	bottom.offset_bottom = -229
 	feedback_label = _label("", 14)
 	bottom.add_child(feedback_label)
-	controls_hint = _label("CONTROLS_HINT", 12)
-	bottom.add_child(controls_hint)
 	_build_structure_panel()
+	_build_guidance()
 	_build_overlay()
 
 func _build_structure_panel() -> void:
@@ -267,6 +277,7 @@ func _build_or_upgrade() -> void:
 		return
 	var success: bool = game.upgrade_tower(game.player, active_pad) if active_pad.occupied() else game.build_tower(game.player, active_pad)
 	if not success:
+		AudioFeedback.play(&"failed")
 		notify("BUILD_UNAVAILABLE")
 	_refresh()
 
@@ -302,6 +313,7 @@ func _build_overlay() -> void:
 	column.add_child(_button("RESTART", _restart))
 	settings_button = _button("SETTINGS", _open_settings)
 	column.add_child(settings_button)
+	column.add_child(_button("HELP_BUTTON", _open_help))
 	result_overlay.hide()
 
 
@@ -313,19 +325,20 @@ func _process(delta: float) -> void:
 	resource_flash = maxf(0.0, resource_flash - delta)
 	if resource_flash <= 0:
 		resource_hint.text = "HUD_RESOURCES"
-	else:
-		resource_hint.text = tr("RESOURCE_GAIN") % [last_resource_gain.x,last_resource_gain.y]
-	controls_hint.visible = game.match_seconds < 22 or get_tree().paused
 	if notice_time <= 0.0:
 		feedback_label.text = ""
+		notice_priority = 0
 	if refresh_time <= 0.0:
 		refresh_time = 0.1
 		_refresh()
+		_update_guidance()
 
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause_match") and not event.is_echo() and game != null:
-		if is_instance_valid(settings_panel):
+		if is_instance_valid(help_panel):
+			_close_help()
+		elif is_instance_valid(settings_panel):
 			_close_settings()
 		else:
 			_toggle_pause()
@@ -356,15 +369,17 @@ func _refresh() -> void:
 	status_label.text = tr("ALLY_STATUS") % [int(game.match_seconds) / 60, int(game.match_seconds) % 60, hero_text, tr(ally.tactical_status)]
 	if is_instance_valid(team.king) and team.king.danger_remaining > 0:
 		status_label.text += tr("KING_WARNING")
+	var next_shop_state: Array = [team.money, team.wood, team.worker_count, team.combat_count, hash(team.upgrade_levels), game.selected_route, game.match_finished, get_tree().paused, Localization.language]
+	if next_shop_state != shop_state:
+		shop_state = next_shop_state
+		_refresh_shop()
+
+
+func _refresh_shop() -> void:
 	for id in army_buttons:
 		var cost: int = game.WORKER_COST if id == &"worker" else int(game.unit_data[id].money_cost)
 		var button: Button = army_buttons[id]
-		var description: String = {
-			&"worker": "ROLE_WORKER",
-			&"melee": "ROLE_MELEE",
-			&"ranged": "ROLE_RANGED",
-			&"tank": "ROLE_TANK"
-		}[id]
+		var description: String = ROLE_KEYS[id]
 		button.text = tr("SHOP_CARD") % [tr("UNIT_" + String(id).to_upper()), cost, tr(description)]
 		var capped: bool = (
 			team.worker_count >= GameTeam.MAX_WORKERS
@@ -373,6 +388,8 @@ func _refresh() -> void:
 		)
 		button.disabled = game.match_finished or get_tree().paused or team.money < cost or capped
 		button.tooltip_text = "LIMIT_REACHED" if capped else (tr("NEED_GOLD") % maxi(0,cost-team.money) if team.money < cost else tr("ROUTE_RECRUIT") % tr(RouteMap.LANE_NAMES[game.selected_route]))
+		if id == &"worker" and not capped and team.money >= cost:
+			button.tooltip_text = tr("WORKER_RECRUIT_TOOLTIP")
 	for definition in game.upgrades:
 		var level: int = team.upgrade_level(definition.id)
 		var button: Button = upgrade_buttons[definition.id]
@@ -409,11 +426,16 @@ func show_king_tab() -> void:
 
 
 func notify(key: String, arguments: Array = []) -> void:
+	var priority: int = 3 if key == "KING_DANGER" else (2 if key == "COMMANDER_DOWN" else 0)
+	if notice_time > 0 and priority < notice_priority:
+		return
+	notice_priority = priority
 	notice_key = key
 	notice_arguments = arguments
 	if feedback_label != null:
 		feedback_label.text = Localization.format_message(key, arguments)
-		notice_time = 4.0
+		feedback_label.add_theme_color_override("font_color", Color("ffcf91") if priority > 0 else Color("e5e9df"))
+		notice_time = 6.0 if priority > 0 else 4.0
 
 
 func show_result(winner: int) -> void:
@@ -441,6 +463,7 @@ func _toggle_pause() -> void:
 
 
 func _restart() -> void:
+	AudioFeedback.stop_all()
 	get_tree().paused = false
 	get_tree().reload_current_scene()
 
@@ -469,6 +492,7 @@ func _flash_button(button: Button) -> void:
 
 func _route_selected(index: int) -> void:
 	game.select_route(index)
+	AudioFeedback.play(&"route")
 	notify("ROUTE_NOTICE", [RouteMap.LANE_NAMES[index]])
 
 func _wallet_number(value: int) -> String:
@@ -481,6 +505,7 @@ func _refresh_result(winner: int) -> void:
 	result_details.text += tr("RESULT_TIME") % [int(game.match_seconds)/60,int(game.match_seconds)%60]
 
 func _language_changed() -> void:
+	shop_state.clear()
 	for index in range(3):
 		tabs.set_tab_title(index, tr(["TAB_ARMY", "TAB_KING", "TAB_ECONOMY"][index]))
 		route_selector.set_item_text(index, tr(RouteMap.LANE_NAMES[index]))
@@ -488,7 +513,10 @@ func _language_changed() -> void:
 		_refresh_result(game.winning_team_id)
 	if notice_time > 0:
 		feedback_label.text = Localization.format_message(notice_key, notice_arguments)
+	if resource_flash > 0:
+		resource_hint.text = tr("RESOURCE_GAIN") % [last_resource_gain.x, last_resource_gain.y]
 	_refresh()
+	_update_guidance()
 
 func _open_settings() -> void:
 	if is_instance_valid(settings_panel):
@@ -500,3 +528,69 @@ func _open_settings() -> void:
 func _close_settings() -> void:
 	settings_panel.queue_free()
 	settings_panel = null
+
+
+func _build_guidance() -> void:
+	guidance_panel = PanelContainer.new()
+	controls.add_child(guidance_panel)
+	guidance_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	guidance_panel.offset_left = -404
+	guidance_panel.offset_right = -16
+	guidance_panel.offset_top = 102
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 7)
+	guidance_panel.add_child(column)
+	var heading := _label("HELP_GUIDANCE", 12)
+	heading.add_theme_color_override("font_color", Color("edce8e"))
+	column.add_child(heading)
+	guidance_text = _label("", 15)
+	guidance_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guidance_text.custom_minimum_size = Vector2(350, 58)
+	column.add_child(guidance_text)
+	var actions := HBoxContainer.new()
+	column.add_child(actions)
+	for entry in [["HELP_BUTTON", _open_help], ["HELP_DISMISS", _dismiss_guidance]]:
+		var button := _button(entry[0], entry[1])
+		button.custom_minimum_size.y = 30
+		button.add_theme_font_size_override("font_size", 13)
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		actions.add_child(button)
+
+
+func _update_guidance() -> void:
+	if not is_instance_valid(guidance_panel):
+		return
+	guidance_panel.visible = GameSettings.onboarding_enabled and not get_tree().paused and not game.match_finished and game.match_seconds < 100
+	var key: String = "HELP_TIP_OBJECTIVE"
+	if not game.player.alive:
+		key = "HELP_TIP_RESPAWN"
+	elif active_pad != null:
+		key = "HELP_TIP_PADS"
+	elif tabs.current_tab > 0:
+		key = "HELP_TIP_UPGRADES"
+	else:
+		var tips := ["HELP_TIP_OBJECTIVE", "HELP_TIP_MOVE", "HELP_TIP_RECRUIT", "HELP_TIP_WORKERS", "HELP_TIP_MAP"]
+		key = tips[mini(int(game.match_seconds / 15), tips.size() - 1)]
+	guidance_text.text = tr(key)
+
+
+func _dismiss_guidance() -> void:
+	if GameSettings.set_onboarding_enabled(false) != OK:
+		notify("SETTINGS_SAVE_FAILED")
+	_update_guidance()
+
+
+func _open_help() -> void:
+	if is_instance_valid(help_panel):
+		return
+	if not get_tree().paused and not game.match_finished:
+		_toggle_pause()
+	help_panel = preload("res://scripts/ui/help_panel.gd").new()
+	help_panel.setup(game)
+	controls.add_child(help_panel)
+	help_panel.closed.connect(_close_help)
+
+
+func _close_help() -> void:
+	help_panel.queue_free()
+	help_panel = null

@@ -28,7 +28,7 @@ files = sorted(
     p
     for p in ROOT.rglob("*")
     if p.suffix in {".gd", ".tscn", ".tres"}
-    and p.relative_to(ROOT).parts[0] != "addons"
+    and p.relative_to(ROOT).parts[0] not in {"addons", "builds", ".godot", ".git"}
 )
 files.append(ROOT / "project.godot")
 references = 0

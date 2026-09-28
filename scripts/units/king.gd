@@ -57,8 +57,10 @@ func take_damage(amount: float, attacker_team_id: int) -> void:
 		if game.match_seconds - last_alarm > 15.0:
 			last_alarm = game.match_seconds
 			if team == game.player.team:
+				AudioFeedback.play(&"king_warning")
 				game.notify("KING_DANGER")
 
 func die() -> void:
+	AudioFeedback.play(&"king_death")
 	game.spawn_effect(position, team.color, "crownfall")
 	super.die()

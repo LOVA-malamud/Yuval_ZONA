@@ -97,19 +97,32 @@ func _run() -> void:
 	if game.match_seconds < 120:
 		push_error("Match ended before strategic opening")
 		failures += 1
-	print("MATCH COMPLETE seconds=", game.match_seconds, " finished=", game.match_finished, " respawns=", deaths, " towers=", towers_built, " wall_seconds=", (Time.get_ticks_msec()-start_ms)/1000.0, " failures=", failures)
 	print("MAX commander travel stall seconds=",max_idle)
 	if max_idle > 12.0:
+		push_error("Commander travel stalled for more than 12 simulated seconds")
 		failures += 1
+	var wall_seconds: float = (Time.get_ticks_msec() - start_ms) / 1000.0
+	print("MATCH COMPLETE seconds=", game.match_seconds, " finished=", game.match_finished, " respawns=", deaths, " towers=", towers_built, " wall_seconds=", wall_seconds, " failures=", failures)
 	var surviving_towers: int = 0
 	for pad in game.pads:
 		if pad.occupied():
 			surviving_towers += 1
 	var report: Dictionary = {"seed":game.strategy_seed,"step_seconds":dt,"duration":game.match_seconds,"finished":game.match_finished,"winning_team_id":game.winning_team_id,"failures":failures,"first_king_damage":first_king_damage,"towers_built":towers_built,"towers_destroyed":seen_towers.size()-surviving_towers,"respawns":deaths,"worker_deposits":deposits,"forward_gather_seconds":forward_gather_ticks*dt,"max_army_per_team":max_army,"lanes_used":routes_seen.keys(),"max_commander_stall":max_idle}
+	report["wall_seconds"] = wall_seconds
 	print("MATCH REPORT ",JSON.stringify(report))
 	var output := FileAccess.open("res:/" + "/tests/artifacts/match_%d_%dhz.json" % [game.strategy_seed,roundi(1.0/dt)],FileAccess.WRITE)
 	output.store_string(JSON.stringify(report,"  "))
+	# Manually stepped combat can leave deferred audio starts. The report and
+	# timing are complete: release the fixture before draining the audio server.
 	paused = false
+	game.free()
+	game = null
+	var audio = root.get_node("AudioFeedback")
+	await physics_frame
+	await physics_frame
+	audio.stop_all()
+	audio.queue_free()
+	await create_timer(0.5).timeout
 	quit(1 if failures else 0)
 
 func _hp(index: int) -> int:

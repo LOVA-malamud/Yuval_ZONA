@@ -19,16 +19,27 @@ func load_preference(path: String = SETTINGS_PATH) -> void:
 		chosen = str(settings.get_value("interface", "language", "en"))
 	set_language(chosen, false)
 
-func set_language(locale: String, persist: bool = true, path: String = SETTINGS_PATH) -> Error:
+func set_language(locale: String, persist: bool = true, path: String = "") -> Error:
 	language = locale if locale in LANGUAGES else "en"
 	TranslationServer.set_locale(language)
 	language_changed.emit()
 	if not persist:
 		return OK
+	var shared_settings := get_node_or_null("/root/GameSettings")
+	if shared_settings != null:
+		return shared_settings.save(path)
+	var destination: String = SETTINGS_PATH if path.is_empty() else path
 	var settings := ConfigFile.new()
-	settings.load(path)
+	settings.load(destination)
 	settings.set_value("interface", "language", language)
-	return settings.save(path)
+	# Also support isolated tools which instantiate localization without autoloads.
+	var temporary: String = destination + ".tmp"
+	var error: Error = settings.save(temporary)
+	if error == OK:
+		error = DirAccess.rename_absolute(temporary, destination)
+		if error != OK:
+			DirAccess.remove_absolute(temporary)
+	return error
 
 func format_message(key: String, arguments: Array = []) -> String:
 	var localized: Array = []

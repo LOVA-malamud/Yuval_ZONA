@@ -1,13 +1,23 @@
 extends Node2D
 ## Deterministic terrain dressing generated once, not every frame.
-var grass: PackedVector2Array
+var grass_mesh: ArrayMesh
 var pebbles: PackedVector2Array
 
 func _ready() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1073
+	var vertices := PackedVector3Array()
+	var colors := PackedColorArray()
 	for i in range(1900):
-		grass.append(Vector2(rng.randf_range(35,4565),rng.randf_range(35,2565)))
+		var point := Vector2(rng.randf_range(35,4565),rng.randf_range(35,2565))
+		_grass_line(vertices, colors, point, point + Vector2(-3, -6), Color("3a5745"))
+		_grass_line(vertices, colors, point, point + Vector2(3, -7), Color("405d48"))
+	var mesh_arrays: Array = []
+	mesh_arrays.resize(Mesh.ARRAY_MAX)
+	mesh_arrays[Mesh.ARRAY_VERTEX] = vertices
+	mesh_arrays[Mesh.ARRAY_COLOR] = colors
+	grass_mesh = ArrayMesh.new()
+	grass_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh_arrays)
 	for i in range(320):
 		pebbles.append(Vector2(rng.randf_range(35,4565),rng.randf_range(35,2565)))
 	queue_redraw()
@@ -16,9 +26,9 @@ func _draw() -> void:
 	var game = get_parent()
 	var map = game.navigation
 	draw_rect(Rect2(Vector2.ZERO, RouteMap.SIZE), Color("304b3e"))
-	for p in grass:
-		draw_line(p,p+Vector2(-3,-6),Color("3a5745"),1.5)
-		draw_line(p,p+Vector2(3,-7),Color("405d48"),1.5)
+	# One immutable mesh keeps 3,800 decorative strokes out of the per-frame
+	# CanvasItem command traversal. Each quad has the original width and color.
+	draw_mesh(grass_mesh, null)
 	for p in pebbles:
 		draw_circle(p,3,Color("526653"))
 	for lane in map.lanes:
@@ -55,13 +65,20 @@ func _draw() -> void:
 		var heading: String = tr("CITADEL") % tr(team.display_name).to_upper()
 		draw_string(ThemeDB.fallback_font,base+Vector2(-230,277),heading,HORIZONTAL_ALIGNMENT_CENTER,460,22,Color(team.color,0.8))
 	for lane in range(3):
-		var p: Vector2 = map.lanes[lane][3]+Vector2(-80,-110)
-		draw_string(ThemeDB.fallback_font,p,tr(["MAP_NORTH","MAP_CENTER","MAP_SOUTH"][lane]),HORIZONTAL_ALIGNMENT_LEFT,-1,24,Color("c6b992"))
+		# Quiet landmarks sit outside the fighting line, not underneath silhouettes.
+		var p: Vector2 = [Vector2(2170,560),Vector2(2140,1180),Vector2(2160,2170)][lane]
+		draw_string(ThemeDB.fallback_font,p,tr(["MAP_NORTH","MAP_CENTER","MAP_SOUTH"][lane]),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color("8c9877"))
 	for mirror in [false,true]:
 		var x: float = 3370 if mirror else 1000
 		for y in [540,2140]:
 			draw_string(ThemeDB.fallback_font,Vector2(x,y),tr("MAP_GROVE"),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color("b2c196"))
 	draw_rect(Rect2(Vector2.ZERO,RouteMap.SIZE),Color("a59b76"),false,12)
+
+func _grass_line(vertices: PackedVector3Array, colors: PackedColorArray, start: Vector2, finish: Vector2, color: Color) -> void:
+	var edge: Vector2 = (finish - start).orthogonal().normalized() * 0.75
+	for point in [start + edge, start - edge, finish + edge, finish + edge, start - edge, finish - edge]:
+		vertices.append(Vector3(point.x, point.y, 0))
+		colors.append(color)
 
 func _banner(point: Vector2, tint: Color) -> void:
 	draw_circle(point+Vector2(0,6),13,Color("293e35"))

@@ -72,6 +72,8 @@ func _physics_process(delta: float) -> void:
 				team.add_resources(carried, carried)
 				deposit_flash = 0.6
 				game.spawn_effect(position, Color("dfbe73"), "deposit")
+				if team == game.player.team:
+					AudioFeedback.play(&"deposit", global_position)
 				carried = 0
 				gather_progress = 0.0
 				state = State.FIND_TREE

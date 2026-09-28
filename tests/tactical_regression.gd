@@ -128,5 +128,7 @@ func _run() -> void:
 	check(terrain_violations == 0,"Large battle respects terrain")
 	check(overlaps < maxi(4,survivors/4),"Large battle avoids severe stacking")
 	check(survivors < 60 or damaged > 10,"Packed frontlines reach and damage enemies")
+	root.get_node("AudioFeedback").stop_all()
+	await create_timer(0.1).timeout
 	print("TACTICAL failures=",failures)
 	quit(1 if failures else 0)

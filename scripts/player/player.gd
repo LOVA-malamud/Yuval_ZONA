@@ -23,6 +23,8 @@ func _ready() -> void:
 	move_speed = 230.0
 	body_radius = 18.0
 	$Camera2D.enabled = human_controlled
+	if human_controlled:
+		z_index = 2
 	$Camera2D.limit_left = 0
 	$Camera2D.limit_top = 0
 	$Camera2D.limit_right = int(game.MAP_SIZE.x)
@@ -45,6 +47,10 @@ func _physics_process(delta: float) -> void:
 			add_to_group("combatants")
 			show()
 			game.spawn_effect(global_position, team.color, "spawn")
+			if human_controlled:
+				game.notify("COMMANDER_RETURNED")
+				AudioFeedback.play(&"respawn")
+				$Camera2D.reset_smoothing()
 		return
 	tick(delta)
 	heal_cooldown = maxf(0.0, heal_cooldown - delta)
@@ -73,6 +79,7 @@ func die() -> void:
 	tactical_status = "STATUS_RESPAWNING"
 	hide()
 	if human_controlled:
+		AudioFeedback.play(&"commander_death")
 		game.notify("COMMANDER_DOWN", [int(respawn_remaining)])
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -44,12 +44,17 @@ var navigation := RouteMap.new()
 var selected_route: int = 1
 var route_highlight: float = 0.0
 var spatial: Dictionary = {}
+const EFFECT_SCRIPT = preload("res://scripts/visuals/battle_effect.gd")
+const MAX_EFFECTS: int = 48
+var effect_count: int = 0
 
 @onready var entities: Node2D = $Entities
 @onready var hud = $HUD
 
 
 func _ready() -> void:
+	if DisplayServer.get_name() != "headless":
+		DisplayServer.window_set_title("Crownfront")
 	get_tree().paused = false
 	_create_team(1, "TEAM_AZURE", Color(0.30, 0.76, 1.0), Vector2(400, 1300), 1.0)
 	_create_team(2, "TEAM_EMBER", Color(1.0, 0.40, 0.35), Vector2(4200, 1300), -1.0)
@@ -67,7 +72,6 @@ func _ready() -> void:
 	hud.setup(self, teams[0])
 	player.base_interacted.connect(hud.show_king_tab)
 	match_ended.connect(hud.show_result)
-	notify("WELCOME")
 
 
 func _create_commander(team: GameTeam, id: int, title: String, role: String, offset: Vector2) -> void:
@@ -183,6 +187,7 @@ func purchase(team_id: int, id: StringName, feedback: bool = true, route_id: int
 		entities.add_child(unit)
 	if feedback:
 		notify("RECRUITED", ["UNIT_" + String(id).to_upper()])
+		AudioFeedback.play(&"purchase")
 	return true
 
 
@@ -220,6 +225,8 @@ func purchase_upgrade(team_id: int, id: StringName, feedback: bool = true) -> bo
 		if definition.id == id:
 			var success: bool = team.upgrade(definition)
 			if feedback:
+				if success:
+					AudioFeedback.play(&"purchase")
 				notify(
 					(
 						"UPGRADED"
@@ -238,11 +245,14 @@ func _on_king_died(entity: CombatEntity) -> void:
 	var winner: CombatEntity = enemy_king(entity.team.team_id)
 	var winner_id: int = winner.team.team_id if winner != null else 0
 	winning_team_id = winner_id
+	AudioFeedback.play(&"victory" if winner_id == player.team.team_id else &"defeat")
 	get_tree().paused = true
 	match_ended.emit(winner_id)
 
 
 func notify(key: String, arguments: Array = []) -> void:
+	if key in ["UNIT_CAP", "INSUFFICIENT_GOLD", "INSUFFICIENT_WOOD", "BUILD_UNAVAILABLE"]:
+		AudioFeedback.play(&"failed")
 	hud.notify(key, arguments)
 
 
@@ -296,6 +306,8 @@ func build_tower(commander, pad) -> bool:
 	pad.tower = tower
 	tower.died.connect(pad.released)
 	entities.add_child(tower)
+	spawn_effect(tower.position, tower.team.color, "build")
+	AudioFeedback.play(&"tower_build", tower.position)
 	if commander.human_controlled:
 		notify("TOWER_CONSTRUCTED", [pad.pad_name])
 	return true
@@ -311,14 +323,23 @@ func upgrade_tower(commander, pad) -> bool:
 		return false
 	tower.apply_upgrade()
 	spawn_effect(tower.position, tower.team.color, "upgrade")
+	AudioFeedback.play(&"tower_upgrade", tower.position)
+	if commander.human_controlled:
+		notify("TOWER_UPGRADED")
 	return true
 
 
 func spawn_effect(point: Vector2, tint: Color, type: String) -> void:
-	var effect = preload("res://scripts/visuals/battle_effect.gd").new()
+	# A fixed visual budget protects burst recruitment and simultaneous battles.
+	# Crown destruction must remain visible even when the ordinary budget is full.
+	if effect_count >= MAX_EFFECTS and type != "crownfall":
+		return
+	var effect = EFFECT_SCRIPT.new()
 	effect.position = point
 	effect.tint = tint
 	effect.effect = type
+	effect_count += 1
+	effect.tree_exited.connect(func(): effect_count -= 1)
 	add_child(effect)
 
 

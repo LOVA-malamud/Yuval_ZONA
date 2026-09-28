@@ -41,8 +41,15 @@ func walkable(point: Vector2, radius: float = 0.0) -> bool:
 	return true
 
 func clear_line(start: Vector2, finish: Vector2, radius: float = 0.0) -> bool:
+	var minimum: Vector2 = start.min(finish)
+	var maximum: Vector2 = start.max(finish)
 	for obstacle in OBSTACLES:
 		var box: Rect2 = obstacle.grow(radius)
+		# Most local movement/attack segments are nowhere near an obstacle. Reject
+		# their bounds before allocating corners and running exact edge tests.
+		# Strict comparisons retain the original edge/corner-touch behavior.
+		if maximum.x < box.position.x or minimum.x > box.end.x or maximum.y < box.position.y or minimum.y > box.end.y:
+			continue
 		if box.has_point(start) or box.has_point(finish):
 			return false
 		var corners := [box.position, box.position + Vector2(box.size.x, 0), box.end, box.position + Vector2(0, box.size.y)]

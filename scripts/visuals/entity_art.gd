@@ -55,6 +55,11 @@ static func paint(c: CanvasItem, kind: StringName, tint: Color, phase: float = 0
 			c.draw_rect(Rect2(-11,-27,22,21),STEEL)
 			c.draw_line(Vector2(-8,-18),Vector2(8,-18),INK,4)
 			_shield(c,Vector2(0,7),tint,1.6)
+			# A broad siege hammer distinguishes the heavy unit from sword infantry.
+			c.draw_line(Vector2(23,17),Vector2(25,-23),INK,6)
+			c.draw_line(Vector2(23,17),Vector2(25,-23),GOLD,3)
+			c.draw_rect(Rect2(16,-29,23,12),INK)
+			c.draw_rect(Rect2(18,-27,19,8),STEEL)
 		&"ranged":
 			c.draw_colored_polygon(PackedVector2Array([Vector2(0,-28),Vector2(14,-10),Vector2(11,18),Vector2(-13,18),Vector2(-14,-10)]),tint.darkened(0.25))
 			c.draw_circle(Vector2(0,-14),7,Color("e0c5a0"))

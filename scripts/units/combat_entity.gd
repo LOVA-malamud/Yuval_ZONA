@@ -26,6 +26,7 @@ var path_goal := Vector2(INF, INF)
 var blocked_time: float = 0.0
 var hit_flash: float = 0.0
 var visual_time: float = 0.0
+var presentation_visible: bool = false
 const ART = preload("res://scripts/visuals/entity_art.gd")
 
 
@@ -52,11 +53,29 @@ func configure(owner_team: GameTeam, manager, data: UnitStats = null) -> void:
 
 
 func tick(delta: float) -> void:
+	var fading_feedback: bool = hit_flash > 0.0 or shot_time > 0.0
 	visual_time += delta
 	hit_flash = maxf(0.0, hit_flash - delta)
 	cooldown = maxf(0.0, cooldown - delta)
 	shot_time = maxf(0.0, shot_time - delta)
-	queue_redraw()
+	var was_visible: bool = presentation_visible
+	presentation_visible = _presentation_in_view()
+	# Node movement transforms cached draw commands automatically. Only workers,
+	# commander capes and transient combat feedback animate their local geometry.
+	# Offscreen actors still simulate fully; redraw on re-entry refreshes any
+	# cached health, animation or flash that changed while their art was culled.
+	if presentation_visible and (not was_visible or fading_feedback or kind in [&"worker", &"player"]):
+		queue_redraw()
+
+
+func _presentation_in_view() -> bool:
+	var canvas: Transform2D = get_canvas_transform()
+	var screen_position: Vector2 = canvas * global_position
+	var bounds: Rect2 = get_viewport_rect()
+	if bounds.grow(120.0 * canvas.get_scale().length()).has_point(screen_position):
+		return true
+	# An arrow can enter the viewport even while its shooter remains outside it.
+	return shot_time > 0.0 and Rect2(screen_position, Vector2.ZERO).expand(canvas * shot_end).grow(24.0).intersects(bounds)
 
 
 func valid_enemy(candidate) -> bool:
@@ -93,6 +112,16 @@ func attack(target: CombatEntity) -> void:
 	cooldown = attack_cooldown
 	shot_time = 0.22
 	shot_end = target.global_position
+	queue_redraw()
+	var sound: StringName = &"melee"
+	if kind == &"ranged":
+		sound = &"ranged"
+	elif kind == &"tank":
+		sound = &"tank"
+		game.spawn_effect(target.global_position, Color("e6c28b"), "impact")
+	elif kind in [&"tower", &"king"]:
+		sound = &"tower_fire"
+	AudioFeedback.play(sound, global_position)
 	var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
 	target.take_damage(dealt, team.team_id)
 
@@ -147,7 +176,19 @@ func _draw() -> void:
 	if team == null or not alive:
 		return
 	var tint: Color = team.color.lerp(Color.WHITE, hit_flash / 0.16 * 0.7)
-	ART.paint(self, kind, tint, visual_time * 6.0)
+	# Small reaction in the silhouette without shaking the camera or hiding hits.
+	var recoil := Vector2.ZERO
+	if shot_time > 0 and kind in [&"melee", &"tank", &"player"]:
+		recoil = global_position.direction_to(shot_end) * sin(shot_time / 0.22 * PI) * (3.0 if kind == &"tank" else 2.0)
+	ART.paint(self, kind, tint, visual_time * 6.0, recoil)
+	draw_set_transform(Vector2.ZERO)
+	# Team emblems remain distinguishable in grayscale: Azure disk / Ember chevron.
+	var badge := Vector2(0, 2) if kind not in [&"king", &"tower"] else Vector2(0, -12)
+	if team.team_id == 1:
+		draw_circle(badge, 3.2, Color("edf3dc"))
+	else:
+		draw_line(badge + Vector2(-4,-2), badge + Vector2(0,3), Color("fff0d5"), 2)
+		draw_line(badge + Vector2(0,3), badge + Vector2(4,-2), Color("fff0d5"), 2)
 	var width: float = 36.0
 	var bar_y: float = -39.0
 	if kind == &"king":
@@ -157,19 +198,24 @@ func _draw() -> void:
 	elif kind == &"tower":
 		width = 54.0
 		bar_y = -90.0
+		for level_index in range(int(get("level"))):
+			draw_rect(Rect2(-9 + level_index*7, -58, 5, 5), ART.GOLD)
 	elif kind == &"player":
 		width = 52.0
 		bar_y = -57.0
 		draw_arc(Vector2(0,5), 30, 0, TAU, 32, Color.WHITE if get("human_controlled") else tint, 2.5, true)
-		draw_string(ThemeDB.fallback_font, Vector2(-80,-69), str(get("commander_id")) + " · " + tr(str(get("commander_name"))), HORIZONTAL_ALIGNMENT_CENTER, 160, 13, Color.WHITE)
+		if not get("human_controlled"):
+			draw_string(ThemeDB.fallback_font, Vector2(-80,-69), str(get("commander_id")) + " · " + tr(str(get("commander_name"))), HORIZONTAL_ALIGNMENT_CENTER, 160, 13, Color.WHITE)
 		if get("human_controlled"):
 			draw_arc(Vector2(0,5),34,0,TAU,32,Color(0.04,0.09,0.12,0.9),3,true)
-			draw_rect(Rect2(-22,-101,44,18),ART.INK)
-			draw_string(ThemeDB.fallback_font,Vector2(-22,-87),tr("YOU_MARKER"),HORIZONTAL_ALIGNMENT_CENTER,44,14,Color.WHITE)
-			draw_colored_polygon(PackedVector2Array([Vector2(-6,-86),Vector2(6,-86),Vector2(0,-78)]),Color.WHITE)
-	draw_rect(Rect2(-width/2-1, bar_y-1, width+2, 6), ART.INK)
-	draw_rect(Rect2(-width/2, bar_y, width, 4), Color("513d3b"))
-	draw_rect(Rect2(-width/2, bar_y, width * health / max_health, 4), tint)
+			draw_rect(Rect2(-25,-86,50,21),ART.INK)
+			draw_string(ThemeDB.fallback_font,Vector2(-25,-70),tr("YOU_MARKER"),HORIZONTAL_ALIGNMENT_CENTER,50,15,Color.WHITE)
+			draw_colored_polygon(PackedVector2Array([Vector2(-6,-65),Vector2(6,-65),Vector2(0,-59)]),Color.WHITE)
+	# Keep important health persistent, ordinary healthy army silhouettes uncluttered.
+	if kind in [&"king", &"tower", &"player"] or health < max_health:
+		draw_rect(Rect2(-width/2-1, bar_y-1, width+2, 6), ART.INK)
+		draw_rect(Rect2(-width/2, bar_y, width, 4), Color("513d3b"))
+		draw_rect(Rect2(-width/2, bar_y, width * health / max_health, 4), tint)
 	if shot_time > 0.0:
 		var end: Vector2 = to_local(shot_end)
 		var progress: float = 1.0 - shot_time / 0.22

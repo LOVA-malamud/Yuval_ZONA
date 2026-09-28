@@ -32,3 +32,8 @@ func apply_upgrade() -> void:
 	attack_range += 20.0
 	attack_cooldown = maxf(0.8, attack_cooldown - 0.12)
 	queue_redraw()
+
+func die() -> void:
+	AudioFeedback.play(&"tower_destroy", global_position)
+	game.spawn_effect(global_position, team.color, "rubble")
+	super.die()

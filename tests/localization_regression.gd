@@ -72,5 +72,8 @@ func _run() -> void:
 	localization.set_language(previous, false)
 	DirAccess.remove_absolute(TEST_PATH)
 	paused = false
+	# The final result cues were just queued; let the audio mixer release playback.
+	root.get_node("AudioFeedback").stop_all()
+	await create_timer(0.1).timeout
 	print("LOCALIZATION COMPLETE failures=", failures)
 	quit(1 if failures else 0)

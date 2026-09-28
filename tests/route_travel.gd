@@ -41,5 +41,7 @@ func _run() -> void:
 		body.travel_toward(Vector2(2050, 900), 0.05)
 	if body.position.distance_to(Vector2(2050, 900)) > 30:
 		failures += 1
+	root.get_node("AudioFeedback").stop_all()
+	await create_timer(0.1).timeout
 	print("ROUTE CHECK failures=", failures)
 	quit(1 if failures else 0)

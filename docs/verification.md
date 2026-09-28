@@ -1,85 +1,80 @@
-# Strategic overhaul verification
+# Pre-playtest final polish verification
 
-Verified with Godot **4.6.2 stable**, Compatibility renderer, on the development Mac. Work remains on `feat/2v2-strategic-overhaul`. The existing repository had no commits, so review used the preserved pre-overhaul source archive as the baseline; no baseline files were reverted or deleted.
+Published milestone: `pre-playtest-final-polish`, based on preserved strategic-overhaul commit `8ca89f7`. Historical results remain in [strategic-verification.md](strategic-verification.md). Prices/stats, King HP, passive income, upgrade costs, tower strength and AI decisions were not retuned.
 
-## Final regression results
+Environment: Godot **4.6.2 stable**, macOS **26.5.2**, Intel Core i7 2.6 GHz, 16 GB RAM, AMD Radeon Pro 5300M, OpenGL Compatibility renderer. Final integration verification: September 28, 2026, following the initial September 25 audit and implementation.
 
-| Check | Result |
+## Changes and review
+
+- Original procedural art retained: clearer human marker, commander rings, team emblems, siege hammer, tower level pips, quiet map labels, fewer healthy-unit health bars and strategic minimap markers. Existing approach offsets, ranged retreat and lightweight separation remain intact.
+- Short attack motion, hit flashes and build/upgrade/deposit/impact/rubble effects; ordinary effects capped at 48, with King destruction exempt. King warnings outrank commander/purchase notices. King destruction/result transitions continue through pause.
+- Nineteen original generated PCM cues, a reusable 12-player pool, cooldowns, distance attenuation and critical-event priority. About 305 KB of cached audio; no downloaded audio, music or empty music setting.
+- Immediate Master/SFX volume, fullscreen/windowed, English/Russian, guidance preference and Reset to Defaults. Validated shared atomic persistence preserves the existing user-data location. Fresh installations start in English independently of OS locale.
+- Nonmodal opening tips and a dismissible six-topic bilingual guide. HUD owns pause, panels own presentation, and GameSettings owns persistence. No forced tutorial match or additional gameplay state machine.
+- Batched immutable grass geometry, cached/visibility-aware actor drawing, shop invalidation and conservative navigation broad rejection. The controller → commander body → team architecture and exact navigation intersection behavior are preserved.
+- Production-only macOS staging excludes tests and editor integration. The published source also omits the local MCP addon and its project registration.
+
+The lead reviewed runtime changes and subagent deliverables. Independent work covered performance/code audit, original audio/settings, Russian editorial/onboarding, final regression/code review and native export. See [initial audit](pre-playtest-audit.md), [regression review](regression-polish.md), [localization review](localization-polish.md), [performance report](performance-polish.md) and [export report](export-polish.md).
+
+## Regression evidence
+
+| Check | Final result |
 | --- | --- |
-| `validate_project.py` | 56 Godot files, 65 resource paths, scene IDs/node paths, seven input actions and upgrade stat keys pass |
-| `validate_localization.py` | 122 matching English/Russian keys, matching formatting placeholders, referenced literal keys pass |
-| `runtime_smoke.gd` | 90 assertions pass; zero failures |
-| `route_travel.gd` | All 18 unit × lane × direction cases and worker terrain detour pass |
-| `tactical_regression.gd` | 12 checks pass; zero failures |
-| `localization_regression.gd` | 14 checks pass; zero failures |
-| `localization_launch.gd -- write`, followed by a separate launch without `write` | Russian preference written and restored in the second engine process |
-| `live_playtest.tscn`, through Godot MCP and again as a standalone process | 18 checks pass in each run; zero failures; real viewport mouse/key/action events |
+| Project validation | 67 Godot files, 75 paths, scene/node references, seven inputs and upgrade keys pass |
+| Localization validation | 170 matching bilingual keys; placeholders/references pass |
+| Runtime smoke | 90/90 |
+| Localization/glyph/live-switch regression | 14/14 |
+| Settings/audio regression | 40/40 |
+| Onboarding regression | 24/24 |
+| New polish behavior regression | 23/23 headless; 26/26 rendered |
+| Separate-process locale persistence | Write/read pass |
+| Separate-process audio/display/guidance/locale persistence | Write/read pass |
+| Route travel | All 18 unit/lane/direction cases plus worker detour; unchanged 41.4–59.0 s |
+| Tactical regression | 12/12 |
+| Crowd stress | 60 initial troops; 38 survive, 15 damaged; zero severe overlap pairs/terrain violations |
+| Standalone real-input review | 32/32, including fullscreen/windowed, mouse sliders/popups, construction/upgrade, help, reset, restart |
+| Normal opening minute | 10/10; 60.20 match seconds in 60.31 wall seconds |
 
-The smoke suite covers four independent commanders, shared team ownership/wallets, all recruit types, all eight upgrade tracks, immediate stat propagation, invalid purchases and friendly fire, worker gathering/deposit and finite resources, army movement, melee cooldown, King defense, AI production, tower construction/atomic payment/levels/ownership/attacks/destruction/cooldown/rebuild, all four respawns, pause/resume, victory, defeat and restart.
+The rendered audio test captured actual mixer output at maximum Master/SFX with twelve simultaneous ordinary/critical cues. The final rendered peak amplitude was **0.825375**, below clipping. The cache contains **304,966 bytes**, and the voice pool remains exactly **12 players**. This establishes technical playback/mixing evidence, not human listening approval.
 
-Tactical tests cover stale obstructed paths, small moving-target endpoint changes, forward commander resupply, respawn path reset, worker retreat and danger memory, terrain line of sight, tank structure priority/damage, and a 60-unit battle. After 30 simulated seconds of the crowd scenario, 38 units survived, 15 survivors had taken damage, no actor violated terrain, and there were **zero severe overlap pairs** under the test's body-distance threshold. Some drawn silhouettes still overlap; this is not a full crowd simulation.
+Clean-install tests cover absent/corrupt settings, unsupported locale, invalid types, nonfinite/out-of-range volumes, defaults, unrelated-section preservation, failed saves and separate-launch persistence. Isolated paths protect the developer's real settings. Two ConfigFile parser messages are intentional corrupt-file diagnostics; positive-test runs have no unexpected errors or leak warnings.
 
-Localization tests explicitly start from a Russian TranslationServer locale with no preference and verify English is selected. They test save/reload, unsupported-locale fallback, every catalog entry/placeholder, all used Cyrillic glyphs in the actual font, live shop/routes/tabs/notices, switching during pause, and switching after victory. Tests use isolated preference files or restore the user's original settings byte-for-byte.
+The normal opening used ordinary resources, four real controllers and real input. It recruited a worker and infantry, walked to the Gate pad, observed carrying/deposits, built a tower with earned resources and ran the full first minute with both armies developing. No free resources or forced enemies were used. Captures: `opening_first.png`, `opening_tower.png`, `opening_minute.png`.
 
-## Long-match results
+## Final integration evidence
 
-These use the real game scripts and economy. The test substitutes an aggressive AI controller for the human commander; it does not grant resources or force King damage. It advances game systems at a specified fixed delta, so simulation time is different from wall-clock execution time. Values below are observed samples, not a guarantee of balance.
+- **Rendered layouts:** the core English/Russian matrix covered 1280×720, 1280×800 and 1920×1080 with zero final layout failures. The six-page help guide added 36 bilingual/resolution captures; all capture assertions passed and the images were inspected for clipping, overflow, wrapping, alignment and Cyrillic rendering.
+- **Performance:** the matched 115-actor, three-battle stress fixture improved from 5.20–5.34 FPS to 39.22–41.78 FPS across the three resolutions. The 60-second 720p soak averaged 37.99 FPS with 274–283 nodes, 3–12 live effects and 101.427–101.808 MiB sampled static memory. Headless simulation remained effectively unchanged at 5.697 versus 5.705 ms per tick; navigation parity covered 15,500 cases and improved from 168.035 to 47.816 ms.
+- **Complete matches:** seed 42 ended at 678.6 simulated seconds, seed 7 at 994.1, and seed 19 at 598.1 using the 10 Hz fixture. A 60 Hz seed-19 run ended at 1276.80 seconds. Ember won all four samples; every run completed without a stall or assertion failure. These samples demonstrate completion and tactical variation, not competitive balance.
+- **Godot/editor integration:** the final MCP-driven input run passed 30/30 with zero runtime parse errors or diagnostics. The normal main scene was restored and launched cleanly afterwards. MCP tooling was used only for development verification and is excluded from the published repository and release package.
+- **Native macOS build:** the real exported x86_64 application passed 22/22 first-launch checks and 8/8 restart/persistence checks. An untouched application copy launched and exited cleanly. The universal binary contains x86_64 and arm64 slices, but only x86_64 was run. Strict ad-hoc code-sign verification passed after extraction outside the synced workspace.
+- **Package contents:** the production PCK contains 104 resources and both locales, with no tests, documentation or editor integration. The finalized ZIP also contains `GODOT-LICENSES.txt` and `CROWNFRONT-ASSETS.txt`; generated builds remain outside source control.
 
-| Seed | Step | Conclusion time | Towers built / destroyed | Commander respawns | Worker deposits | Peak army per team | First King damage |
-| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| 42 | 10 Hz | 11:18.6 | 15 / 8 | 9 | 391 | 31 | 4:24.2 |
-| 7 | 10 Hz | 16:34.1 | 19 / 13 | 9 | 561 | 37 | 14:17.5 |
-| 19 | 10 Hz | 9:58.1 | 15 / 8 | 4 | 328 | 29 | 0:57.4 |
-| 19 | 60 Hz | 21:16.8 | 33 / 25 | 14 | 713 | 40 | 0:58.1 |
+## Problems found and fixed
 
-All four concluded naturally, passed their progression/terrain/stall assertions, and observed forward gathering. Seeds 7 and 19 used all three lanes; seed 42 used two. The longest measured commander travel stall was **2 seconds** in each sample (the monitor samples every two seconds). The 60 Hz sample recorded 3,301 aggregate worker-seconds gathering forward timber. Lane pressure, worker deposits, tower turnover, respawns and eventual King destruction were observed, rather than judging only the opening minute.
+- Default locale saves bypassed an overridden GameSettings path. They now delegate to the shared store while explicit paths remain supported.
+- Purchases/commander death could overwrite King danger. Notice priorities now protect the objective alert.
+- Active resource-gain text could retain its former language. It now refreshes on language change.
+- Guidance dismissal did not report failed persistence. Localized failure feedback now preserves the current-session choice.
+- Restart could retain previous-match sounds. All voices now stop before reload.
+- Obsolete hidden instruction UI remained after onboarding. Removed the unused node and hide call.
+- Headless imports could interfere with MCP autoload ownership. Bridge activation/cleanup now respect execution mode and ownership.
+- Immediate test shutdown could race mixer teardown. Tests stop voices and allow a short drain interval.
+- The initial performance fixture coupled role and battle lane, and its old headless report contained no samples. Final measurements use mixed-role battles and a pristine baseline; invalid measurements are excluded.
+- Initial input failures assumed popup focus and instantaneous layout/native-window transitions. Corrected the harness; all 32 final checks pass without gameplay changes.
+- Godot 4.6 macOS preset names/universal texture requirements differed from the initial configuration. Corrected staging/preset fields before native tests.
 
-After localization, seed 42 was rerun to completion: **678.6 seconds**, Ember victory, identical tower/deposit/respawn/army metrics, zero failures. Gameplay data and AI decision behavior were preserved.
+## Remaining questions for human playtesting
 
-The wide variation between seeds and time steps is a remaining balance limitation. Seed 7 took over fourteen minutes to first threaten a King, although it then concluded. Further human balance testing should focus on defensive openings and how easily a coordinated push converts territory into King pressure. No claim of competitive balance or frame-step determinism is made.
+Automation cannot establish subjective fun, intuitive tip timing, audio taste, competitive balance or performance on other hardware. Dense silhouettes still overlap; there is no full crowd simulator. The minimap remains full-information, and damage remains hitscan with animated traces. No networking or major new gameplay system was added.
 
-## Travel and recovery
+1. Is the King objective and commander respawn rule clear within the first minute?
+2. Can players find themselves and distinguish frontline, ranged and siege roles in a crowded fight?
+3. Are shared resources and ally spending understandable, and do recruitment/route controls feel responsive?
+4. Do tips arrive when needed without distracting from play? Is the optional guide sufficient?
+5. Are cues distinct and restrained over a long match, with King danger prominent enough?
+6. Is the HUD/minimap comfortable at 720p? Does Russian terminology sound natural to native speakers?
+7. Do defensive openings stall excessively, and can coordinated siege pressure convert territory into King damage?
+8. Are the existing 10–21 minute automated durations appropriate for real players? Observe before changing balance.
 
-Unopposed travel, including the initial rally wait, remained **41.4–59.0 seconds**, depending on unit and lane. North/center/south were checked for melee, ranged and tank in both directions. Workers were tested around an obstructed route separately.
-
-The original commander stalls came from cached path endpoints surviving target movement/respawn and blocked segments. The shared movement code now refreshes stale goals and blocked routes, and respawn resets the controller and path. The defensive stalemate fixes were directed at spending and pressure: mixed five-unit groups, reinforcing an established friendly lane, shared tower-budget reservations, capped routine AI King investment, slower commander replenishment and tank siege priority. No scripted match phases or global damage escalation were introduced.
-
-## Visual verification
-
-Actual `ViewportTexture` images were captured and their dimensions asserted; requested window sizes alone were not accepted as evidence. Every core matrix image was inspected individually.
-
-| Scenario | English | Russian |
-| --- | --- | --- |
-| Army shop + battle + owned tower context | 1280×720, 1280×800, 1920×1080 | 1280×720, 1280×800, 1920×1080 |
-| King upgrade tab | All three | All three |
-| Economy upgrade tab | All three | All three |
-| Empty build-pad context | All three | All three |
-| Settings | All three | All three |
-| Victory | All three | All three |
-
-This is **36 core captures**, all with zero out-of-viewport control bounds failures. Review checked the top wallet/King bars, bottom dock, card icons and text, route selector, minimap, contextual tower information, settings and result controls. Cyrillic rendered correctly; no clipped/overlapping Russian control text was found. A Settings backdrop stacking issue was discovered by screenshot review and fixed before regenerating the matrix.
-
-Additional English/Russian 1280×720 captures cover King danger, empty/friendly/enemy/cooldown pads and defeat. The MCP-driven live test also captured and inspected both languages in the actual **1280×800** embedded viewport. Editor embedding locks that window size, so the standalone rendered matrix supplies the other verified resolutions; the report does not mislabel resized embedded captures.
-
-Captures and raw logs/reports live in ignored `tests/artifacts/`. Reproduce the matrix with:
-
-```sh
-godot --path . --script tests/visual_review.gd -- battle 1280x720 en
-godot --path . --script tests/visual_review.gd -- economy 1920x1080 ru
-```
-
-Substitute `king`, `pads`, `settings`, `victory`, `defeat`, `danger`, or `pad_states` and the desired dimensions/locale. These are staged visual fixtures, not evidence of naturally occurring balance outcomes.
-
-## Godot MCP and input verification
-
-The live integration scene was selected as the main scene temporarily through MCP and started with `godot_play`. It tested movement, mouse purchase hit testing, route selection, Space attack, tower build/upgrade controls, wheel zoom, Escape pause, frozen economy, mouse-opening Settings, opening the native language menu, keyboard selection of Russian, immediate UI changes, disk persistence, Escape back/resume, restart and bilingual captures.
-
-The final run reported **18 passes, zero failures**. `godot_get_runtime_parse_errors` returned **count 0** for `user://logs/godot.log`; bridge diagnostics returned empty error and warning lists. The current runtime log was also read directly and preserved as `final_mcp_live.log`. Main scene was restored to `res://scenes/main/main.tscn` afterwards, launched again through MCP, and its current runtime log and MCP parse-error check were clean. It was then stopped normally.
-
-During verification, input injection was corrected to use local viewport coordinates for scaled embedded play and the popup's own window ID for native menu key events. [Godot's menu implementation](https://github.com/godotengine/godot/blob/4.6/scene/gui/popup_menu.cpp) supports arrow navigation; the harness no longer assumes End selects the last entry. These were test-harness corrections, not changes to gameplay input. The editor's stale 800-high project configuration was also synchronized to the final 720 reference canvas before final MCP testing.
-
-Deep live-node inspection was not repeatedly retried. Earlier combined run/wait workflows could block the editor and archived-log selection was unreliable; direct scene/play/stop/diagnostic calls and explicit runtime capture scripts were used instead.
-
-## Scope of confidence
-
-The automated regressions and completed matches establish functional stability for the tested scenarios. They do not replace extended human playtesting, a native Russian editorial review, multiplayer tests, export/platform testing, or performance profiling on low-end hardware. The prototype retains full-information minimaps, hitscan damage with visual traces, static terrain, and no sound/networking. Dense fights can still visually overlap.
+Raw captures/logs/JSON are in ignored `tests/artifacts/`; reproducible scripts are tracked. Distribution artifacts are in ignored `builds/`. Historical verification is separate to avoid confusing old and current measurements.
