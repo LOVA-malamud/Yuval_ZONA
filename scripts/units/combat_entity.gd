@@ -122,8 +122,11 @@ func attack(target: CombatEntity) -> void:
 	elif kind in [&"tower", &"king"]:
 		sound = &"tower_fire"
 	AudioFeedback.play(sound, global_position)
-	var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
-	target.take_damage(dealt, team.team_id)
+	if kind == &"ranged":
+		game.launch_projectile(team.team_id, global_position, target.global_position, damage, structure_damage_multiplier)
+	else:
+		var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
+		target.take_damage(dealt, team.team_id)
 
 
 func take_damage(amount: float, attacker_team_id: int) -> void:
@@ -216,10 +219,10 @@ func _draw() -> void:
 		draw_rect(Rect2(-width/2-1, bar_y-1, width+2, 6), ART.INK)
 		draw_rect(Rect2(-width/2, bar_y, width, 4), Color("513d3b"))
 		draw_rect(Rect2(-width/2, bar_y, width * health / max_health, 4), tint)
-	if shot_time > 0.0:
+	if shot_time > 0.0 and kind != &"ranged":
 		var end: Vector2 = to_local(shot_end)
 		var progress: float = 1.0 - shot_time / 0.22
-		if kind in [&"ranged", &"tower", &"king"]:
+		if kind in [&"tower", &"king"]:
 			var tip: Vector2 = end * progress
 			draw_line(tip - end.normalized() * (34 if kind == &"tower" else 20), tip, ART.GOLD, 4 if kind in [&"king", &"tower"] else 3, true)
 			if kind in [&"king", &"tower"]:

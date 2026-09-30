@@ -2,6 +2,7 @@ extends CanvasLayer
 ## UI stays active during pause/end screens; all transactions go through the game.
 
 const MINIMAP_SCRIPT = preload("res://scripts/ui/minimap.gd")
+const TOUCH_STICK_SCRIPT = preload("res://scripts/ui/touch_stick.gd")
 
 var game = null
 var team: GameTeam
@@ -41,6 +42,8 @@ var guidance_panel: PanelContainer
 var guidance_text: Label
 var shop_state: Array = []
 var notice_priority: int = 0
+var mobile_interact_button: Button
+var touch_stick: Control
 const ROLE_KEYS := {&"worker": "ROLE_WORKER", &"melee": "ROLE_MELEE", &"ranged": "ROLE_RANGED", &"tank": "ROLE_TANK"}
 
 
@@ -235,7 +238,25 @@ func _build_interface() -> void:
 	bottom.add_child(feedback_label)
 	_build_structure_panel()
 	_build_guidance()
+	_build_mobile_controls()
 	_build_overlay()
+
+func _build_mobile_controls() -> void:
+	if not DisplayServer.is_touchscreen_available():
+		return
+	touch_stick = TOUCH_STICK_SCRIPT.new()
+	touch_stick.controller = game.player.controller
+	controls.add_child(touch_stick)
+	mobile_interact_button = _button("MOBILE_INTERACT", func():
+		if game.player.alive and not get_tree().paused and not game.match_finished:
+			game.player.interact()
+	)
+	controls.add_child(mobile_interact_button)
+	mobile_interact_button.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
+	mobile_interact_button.offset_left = -154
+	mobile_interact_button.offset_right = -22
+	mobile_interact_button.offset_top = -33
+	mobile_interact_button.offset_bottom = 33
 
 func _build_structure_panel() -> void:
 	structure_panel = PanelContainer.new()
@@ -320,6 +341,9 @@ func _build_overlay() -> void:
 func _process(delta: float) -> void:
 	if game == null:
 		return
+	if is_instance_valid(mobile_interact_button):
+		mobile_interact_button.visible = game.player.alive and not get_tree().paused and not game.match_finished
+		touch_stick.visible = mobile_interact_button.visible
 	refresh_time -= delta
 	notice_time -= delta
 	resource_flash = maxf(0.0, resource_flash - delta)
@@ -439,6 +463,8 @@ func notify(key: String, arguments: Array = []) -> void:
 
 
 func show_result(winner: int) -> void:
+	if game.player.controller.has_method("reset_touch"):
+		game.player.controller.reset_touch()
 	_refresh_result(winner)
 	resume_button.hide()
 	result_overlay.show()
@@ -455,6 +481,8 @@ func show_result(winner: int) -> void:
 func _toggle_pause() -> void:
 	if game.match_finished:
 		return
+	if game.player.controller.has_method("reset_touch"):
+		game.player.controller.reset_touch()
 	get_tree().paused = not get_tree().paused
 	result_title.text = "PAUSED"
 	result_details.text = "PAUSE_INSTRUCTIONS"
@@ -506,6 +534,8 @@ func _refresh_result(winner: int) -> void:
 
 func _language_changed() -> void:
 	shop_state.clear()
+	if is_instance_valid(mobile_interact_button):
+		mobile_interact_button.text = tr("MOBILE_INTERACT")
 	for index in range(3):
 		tabs.set_tab_title(index, tr(["TAB_ARMY", "TAB_KING", "TAB_ECONOMY"][index]))
 		route_selector.set_item_text(index, tr(RouteMap.LANE_NAMES[index]))
@@ -571,6 +601,8 @@ func _update_guidance() -> void:
 	else:
 		var tips := ["HELP_TIP_OBJECTIVE", "HELP_TIP_MOVE", "HELP_TIP_RECRUIT", "HELP_TIP_WORKERS", "HELP_TIP_MAP"]
 		key = tips[mini(int(game.match_seconds / 15), tips.size() - 1)]
+		if key == "HELP_TIP_MOVE" and DisplayServer.is_touchscreen_available():
+			key = "HELP_TIP_MOVE_TOUCH"
 	guidance_text.text = tr(key)
 
 

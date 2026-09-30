@@ -45,6 +45,7 @@ var selected_route: int = 1
 var route_highlight: float = 0.0
 var spatial: Dictionary = {}
 const EFFECT_SCRIPT = preload("res://scripts/visuals/battle_effect.gd")
+const PROJECTILE_SCRIPT = preload("res://scripts/units/combat_projectile.gd")
 const MAX_EFFECTS: int = 48
 var effect_count: int = 0
 
@@ -341,6 +342,11 @@ func spawn_effect(point: Vector2, tint: Color, type: String) -> void:
 	effect_count += 1
 	effect.tree_exited.connect(func(): effect_count -= 1)
 	add_child(effect)
+
+func launch_projectile(team_id: int, start: Vector2, aim: Vector2, damage: float, structure_multiplier: float) -> void:
+	var projectile = PROJECTILE_SCRIPT.new()
+	projectile.configure(self, team_id, start, aim, damage, structure_multiplier)
+	entities.add_child(projectile)
 
 
 func _physics_process(_delta: float) -> void:

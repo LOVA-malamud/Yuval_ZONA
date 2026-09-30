@@ -112,8 +112,12 @@ func select_topic(index: int) -> void:
 func _refresh() -> void:
 	var topic: String = TOPICS[topic_index]
 	topic_title.text = tr("HELP_" + topic + "_TITLE")
-	topic_body.text = tr("HELP_" + topic + "_BODY")
-	topic_action.text = tr("HELP_" + topic + "_ACTION")
+	if topic == "CONTROLS" and DisplayServer.is_touchscreen_available():
+		topic_body.text = tr("HELP_CONTROLS_BODY_TOUCH")
+		topic_action.text = tr("HELP_CONTROLS_ACTION_TOUCH")
+	else:
+		topic_body.text = tr("HELP_" + topic + "_BODY")
+		topic_action.text = tr("HELP_" + topic + "_ACTION")
 	page_label.text = tr("HELP_PAGE") % [topic_index + 1, TOPICS.size()]
 	previous_button.disabled = topic_index == 0
 	next_button.disabled = topic_index == TOPICS.size() - 1

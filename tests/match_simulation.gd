@@ -72,6 +72,9 @@ func _run() -> void:
 			if not game.navigation.walkable(entity.position, entity.body_radius - 0.1):
 				push_error("Entity entered blocked terrain: %s %s" % [entity.kind,entity.position])
 				failures += 1
+		for projectile in get_nodes_in_group("projectiles"):
+			if is_instance_valid(projectile) and not projectile.is_queued_for_deletion():
+				projectile._physics_process(dt)
 		if steps % maxi(1,int(2.0/dt)) == 0:
 			for commander in game.commanders:
 				var id: int = commander.commander_id

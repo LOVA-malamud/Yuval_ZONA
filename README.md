@@ -26,6 +26,24 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | Army / King / Economy tabs | Recruit units and buy shared upgrades |
 | `Escape` | Pause, close the active panel, or resume |
 
+On a touchscreen, drag from the left side to move. The commander attacks nearby enemies while a movement touch is held. Use the on-screen Interact button near your King or a build pad. Commander strikes have a brief wind-up, and ranged shots travel toward the position aimed at when fired, so movement can avoid both. These touch controls are an initial mobile input pass; device layout and thumb comfort still need testing on phones.
+
+## Text-only game lab
+
+Run movement, collision, touch-input, and dodge scenarios without opening the editor:
+
+```sh
+python3 tests/run_lab.py
+```
+
+Run an accelerated full match with the real game scripts:
+
+```sh
+python3 tests/run_lab.py --suite all --seeds 42
+```
+
+The runner locates Godot automatically when possible. Use `--godot /path/to/Godot` otherwise. It prints key measurements and writes JSON to `tests/artifacts/game_lab_report.json`; use `--output tests/artifacts/experiment.json` to keep a named comparison. Full matches run the actual scene tree at a fixed 60 Hz with a scripted AI commander in the human slot. They measure system behavior, not human play quality.
+
 The optional in-game **How to Play** guide explains the objective, unit roles, routes, workers, towers, upgrades, and minimap.
 
 ## Languages and settings

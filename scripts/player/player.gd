@@ -11,6 +11,8 @@ var controller = null
 var respawn_remaining: float = 0.0
 var heal_cooldown: float = 0.0
 var tactical_status: String = "STATUS_READY"
+var strike_target: CombatEntity
+var strike_remaining: float = 0.0
 
 func _ready() -> void:
 	super._ready()
@@ -39,6 +41,8 @@ func _physics_process(delta: float) -> void:
 			alive = true
 			health = max_health
 			cooldown = 0.0
+			strike_target = null
+			strike_remaining = 0.0
 			travel_path.clear()
 			path_goal = Vector2(INF, INF)
 			if controller.has_method("reset_orders"):
@@ -53,9 +57,41 @@ func _physics_process(delta: float) -> void:
 				$Camera2D.reset_smoothing()
 		return
 	tick(delta)
+	if strike_remaining > 0.0:
+		strike_remaining -= delta
+		if strike_remaining <= 0.0:
+			_resolve_strike()
 	heal_cooldown = maxf(0.0, heal_cooldown - delta)
 	if controller != null:
 		controller.drive(self, delta)
+
+func attack(target: CombatEntity) -> void:
+	if not alive or cooldown > 0.0 or strike_remaining > 0.0 or not valid_enemy(target):
+		return
+	if edge_distance(target) > attack_range or not game.navigation.clear_line(global_position, target.global_position):
+		return
+	strike_target = target
+	strike_remaining = game.balance.commander_strike_windup
+	queue_redraw()
+
+func _resolve_strike() -> void:
+	if valid_enemy(strike_target) and edge_distance(strike_target) <= attack_range and game.navigation.clear_line(global_position, strike_target.global_position):
+		super.attack(strike_target)
+	else:
+		# Dodging a committed strike creates a real opening for the opponent.
+		cooldown = attack_cooldown
+	strike_target = null
+	queue_redraw()
+
+func _draw() -> void:
+	super._draw()
+	if human_controlled and controller != null and valid_enemy(controller.target):
+		var selected: CombatEntity = controller.target
+		draw_arc(to_local(selected.global_position), selected.body_radius + 9.0, 0.0, TAU, 24, Color("f6e4a6", 0.75), 2.0, true)
+	if strike_remaining > 0.0 and valid_enemy(strike_target):
+		var heading: float = global_position.angle_to_point(strike_target.global_position)
+		var progress: float = 1.0 - strike_remaining / game.balance.commander_strike_windup
+		draw_arc(Vector2.ZERO, attack_range + body_radius, heading - 0.55, heading + 0.55, 18, Color("f6d390", 0.30 + 0.60 * progress), 3.0, true)
 
 func interact() -> void:
 	if human_controlled and game.nearest_pad(self) != null:
@@ -74,6 +110,10 @@ func interact() -> void:
 func die() -> void:
 	game.spawn_effect(global_position, team.color, "death")
 	alive = false
+	if controller.has_method("reset_touch"):
+		controller.reset_touch()
+	strike_target = null
+	strike_remaining = 0.0
 	remove_from_group("combatants")
 	respawn_remaining = game.balance.commander_respawn
 	tactical_status = "STATUS_RESPAWNING"

@@ -35,7 +35,9 @@ references = 0
 for path in files:
     text = path.read_text()
     name = str(path.relative_to(ROOT))
-    for reference in re.findall(r'"res://([^"\n]+)"', text):
+    # Existence probes may deliberately name assets excluded from a release PCK.
+    load_references = re.sub(r'FileAccess\.file_exists\("res://[^"\n]+"\)', '', text)
+    for reference in re.findall(r'"res://([^"\n]+)"', load_references):
         check(exact_file(reference), f"{name}: missing/case-mismatched {reference}")
         references += 1
     if path.suffix not in {".tscn", ".tres"}:

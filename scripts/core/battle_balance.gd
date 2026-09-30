@@ -15,5 +15,6 @@ extends Resource
 @export var economic_decision_seconds: float = 9.0
 
 @export var commander_health: float = 180.0
+@export var commander_strike_windup: float = 0.10
 @export var commander_respawn: float = 12.0
 @export var base_heal_cooldown: float = 30.0
