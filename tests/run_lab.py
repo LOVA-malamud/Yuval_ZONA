@@ -10,6 +10,11 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from uuid import uuid4
+from match_scenarios import load as load_scenarios, swapped
+from match_report import summarize, html_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,24 +39,38 @@ def engine_path(explicit: str | None) -> str:
     raise SystemExit("Godot not found. Pass --godot /path/to/Godot or set GODOT_BIN.")
 
 
-def run_script(engine: str, script: str, arguments: list[str], real_time: bool = False) -> dict:
+def run_script(engine: str, script: str, arguments: list[str], real_time: bool = False, visible: bool = False, label: str = "") -> dict:
     command = [
-        engine, "--headless", "--path", str(ROOT),
-        "--log-file", str(ARTIFACTS / "game_lab_godot.log"),
+        engine, *([] if visible else ["--headless"]), "--path", str(ROOT),
+        "--log-file", str(ARTIFACTS / f"game_lab_{uuid4().hex}.log"),
     ]
-    if real_time:
+    if real_time and not visible:
         command.extend(["--fixed-fps", "60", "--disable-render-loop"])
     command.extend(["--script", script, "--", *arguments])
-    try:
-        result = subprocess.run(command, cwd=ROOT, text=True, capture_output=True, timeout=300)
-    except subprocess.TimeoutExpired as error:
-        raise SystemExit(f"{script} exceeded five wall-clock minutes") from error
+    lines: list[str] = []
     marker = "LAB_MATCH_REPORT " if real_time else "LAB_REPORT "
-    reports = [line.removeprefix(marker) for line in result.stdout.splitlines() if line.startswith(marker)]
-    if result.returncode or len(reports) != 1 or "SCRIPT ERROR:" in result.stdout:
-        print(result.stdout, end="", file=sys.stderr)
-        print(result.stderr, end="", file=sys.stderr)
-        raise SystemExit(f"{script} failed (exit {result.returncode}; {len(reports)} reports).")
+    process = subprocess.Popen(command, cwd=ROOT, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, bufsize=1)
+    def collect() -> None:
+        assert process.stdout is not None
+        for line in process.stdout:
+            if line.startswith("LAB_MATCH_PROGRESS "):
+                progress = json.loads(line.removeprefix("LAB_MATCH_PROGRESS "))
+                print(f"{label or 'match'} seed {progress['seed']}: {progress['seconds']}s, King HP {progress['king_health']}, armies {progress['army']}", flush=True)
+            else:
+                lines.append(line)
+    reader = threading.Thread(target=collect, daemon=True)
+    reader.start()
+    try:
+        process.wait(timeout=None if visible else 300)
+    except subprocess.TimeoutExpired as error:
+        process.kill()
+        process.wait()
+        raise SystemExit(f"{script} exceeded five wall-clock minutes") from error
+    reader.join()
+    reports = [line.removeprefix(marker) for line in lines if line.startswith(marker)]
+    if process.returncode or len(reports) != 1 or any("SCRIPT ERROR:" in line for line in lines):
+        print("".join(lines)[-8000:], end="", file=sys.stderr)
+        raise SystemExit(f"{script} failed (exit {process.returncode}; {len(reports)} reports).")
     return json.loads(reports[0])
 
 
@@ -61,10 +80,21 @@ def main() -> None:
     parser.add_argument("--suite", choices=["movement", "matches", "all"], default="movement")
     parser.add_argument("--seeds", default="42", help="Comma-separated match seeds")
     parser.add_argument("--output", default="tests/artifacts/game_lab_report.json", help="JSON report path")
+    parser.add_argument("--scenarios", help="Version 1 scenario JSON file")
+    parser.add_argument("--html", help="Self-contained HTML report path")
+    parser.add_argument("--limit-seconds", type=float, default=1800.0, help="Simulated match time limit")
+    parser.add_argument("--jobs", type=int, default=1, help="Concurrent Godot matches (default: 1)")
+    parser.add_argument("--watch", metavar="SCENARIO", help="Show one named scenario in a Godot window using the first seed")
     args = parser.parse_args()
+    if not 0 < args.limit_seconds <= 1800:
+        parser.error("--limit-seconds must be between 0 and 1800")
+    if not 1 <= args.jobs <= 16:
+        parser.error("--jobs must be between 1 and 16")
+    if args.watch and args.suite == "movement":
+        parser.error("--watch requires --suite matches or all")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     engine = engine_path(args.godot)
-    output: dict = {"engine": engine, "suite": args.suite}
+    output: dict = {"version": 1, "engine": engine, "suite": args.suite, "seeds": args.seeds, "limit_seconds": args.limit_seconds}
     if args.suite in {"movement", "all"}:
         movement = run_script(engine, "tests/game_lab.gd", [])
         output["movement"] = movement
@@ -75,17 +105,51 @@ def main() -> None:
             seeds = [int(item) for item in args.seeds.split(",")]
         except ValueError:
             parser.error("--seeds must be comma-separated integers")
-        for seed in seeds:
-            report = run_script(engine, "tests/engine_match_lab.gd", [str(seed)], True)
-            matches.append(report)
-            print(f"seed {seed}: {report['duration']:.1f}s, winner {report['winning_team_id']}, first King damage {report['first_king_damage']:.1f}s, failures {report['failures']}")
+        if not seeds:
+            parser.error("--seeds must contain at least one seed")
+        scenarios = load_scenarios(Path(args.scenarios)) if args.scenarios else {"baseline": {}}
+        if "baseline" not in scenarios:
+            scenarios = {"baseline": {}, **scenarios}
+        specs = []
+        if args.watch and args.watch not in scenarios:
+            parser.error(f"unknown watch scenario: {args.watch}")
+        for name, config in scenarios.items():
+            assignments = [("normal", config, 1)]
+            if config.get("teams"):
+                assignments.append(("swapped", swapped(config), 2))
+            for assignment, effective, candidate_team in assignments:
+                for seed in seeds:
+                    specs.append((name, assignment, effective, candidate_team, seed))
+        if args.watch:
+            specs = [spec for spec in specs if spec[0] == args.watch and spec[1] == "normal" and spec[4] == seeds[0]][:1]
+        def run_match(spec):
+            name, assignment, effective, candidate_team, seed = spec
+            try:
+                report = run_script(engine, "tests/engine_match_lab.gd", [str(seed), json.dumps(effective, separators=(",", ":")), str(args.limit_seconds)], True, visible=bool(args.watch), label=f"{name} {assignment}")
+            except SystemExit as error:
+                report = {"seed": seed, "outcome": "technical_failure", "error": str(error), "effective_config": effective}
+            report.update(scenario=name, assignment=assignment, candidate_team=candidate_team)
+            return report
+        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
+            for report in pool.map(run_match, specs):
+                matches.append(report)
+                print(f"{report['scenario']} {report['assignment']} seed {report['seed']}: {report.get('outcome')} winner {report.get('winning_team_id', '-')}", flush=True)
         output["matches"] = matches
+        output["summary"] = summarize(matches)
+        output["label"] = "Diagnostic evidence; not an automatic balance verdict"
     destination = Path(args.output)
     if not destination.is_absolute():
         destination = ROOT / destination
     destination.parent.mkdir(parents=True, exist_ok=True)
     destination.write_text(json.dumps(output, indent=2) + "\n")
     print(f"report: {destination}")
+    if args.suite in {"matches", "all"}:
+        html_path = Path(args.html) if args.html else destination.with_suffix(".html")
+        if not html_path.is_absolute():
+            html_path = ROOT / html_path
+        html_path.parent.mkdir(parents=True, exist_ok=True)
+        html_path.write_text(html_report({"version": 1, "runs": matches, "summary": output["summary"]}))
+        print(f"replay: {html_path}")
 
 
 if __name__ == "__main__":

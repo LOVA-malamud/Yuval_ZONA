@@ -19,7 +19,7 @@ func _ready() -> void:
 	super._ready()
 	kind = &"worker"
 	body_radius = 9.0
-	max_health = 65.0
+	max_health = team.get_stat(&"worker_health")
 	health = max_health
 
 

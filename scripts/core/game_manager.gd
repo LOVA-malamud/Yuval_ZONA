@@ -39,6 +39,8 @@ var spawn_sequence: int = 0
 const PAD_SCRIPT = preload("res://scripts/structures/build_pad.gd")
 const TOWER_SCRIPT = preload("res://scripts/structures/defense_tower.gd")
 var balance = preload("res://resources/battle_balance.tres")
+var simulation_config: Dictionary = {}
+var worker_cost: int = WORKER_COST
 var pads: Array = []
 var navigation := RouteMap.new()
 var selected_route: int = 1
@@ -52,8 +54,38 @@ var effect_count: int = 0
 @onready var entities: Node2D = $Entities
 @onready var hud = $HUD
 
+func _team_config(id: int) -> Dictionary:
+	var result: Dictionary = simulation_config.get("shared", {}).get("team", {}).duplicate(true)
+	result.merge(simulation_config.get("teams", {}).get(str(id), {}), true)
+	if simulation_config.get("shared", {}).get("base_stats", {}) is Dictionary:
+		var stats: Dictionary = simulation_config.get("shared", {}).get("base_stats", {}).duplicate(true)
+		stats.merge(result.get("base_stats", {}), true)
+		result["base_stats"] = stats
+	return result
+
+func _apply_simulation_config() -> void:
+	# The scene stores preloaded resources; each match owns its mutable copies.
+	balance = balance.duplicate(true)
+	for field in simulation_config.get("shared", {}).get("balance", {}):
+		balance.set(field, simulation_config["shared"]["balance"][field])
+	var copied_units: Dictionary = {}
+	for id in unit_data:
+		copied_units[id] = unit_data[id].duplicate(true)
+		for field in simulation_config.get("shared", {}).get("units", {}).get(String(id), {}):
+			copied_units[id].set(field, simulation_config["shared"]["units"][String(id)][field])
+	unit_data = copied_units
+	var copied_upgrades: Array[UpgradeDefinition] = []
+	for definition in upgrades:
+		var copy: UpgradeDefinition = definition.duplicate(true)
+		for field in simulation_config.get("shared", {}).get("upgrades", {}).get(String(copy.id), {}):
+			copy.set(field, simulation_config["shared"]["upgrades"][String(copy.id)][field])
+		copied_upgrades.append(copy)
+	upgrades = copied_upgrades
+	worker_cost = int(simulation_config.get("shared", {}).get("worker_cost", WORKER_COST))
+
 
 func _ready() -> void:
+	_apply_simulation_config()
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_title("Crownfront")
 	get_tree().paused = false
@@ -63,7 +95,7 @@ func _ready() -> void:
 	_create_pads()
 	for team in teams:
 		_create_king(team)
-		for index in range(3):
+		for index in range(int(_team_config(team.team_id).get("workers", 3))):
 			_spawn_worker(team)
 	_create_commander(teams[0], 1, "COMMANDER_YOU", "human", Vector2(-25, 110))
 	_create_commander(teams[0], 2, "COMMANDER_WARDEN", "ally", Vector2(50, -110))
@@ -105,6 +137,12 @@ func _process(delta: float) -> void:
 
 func _create_team(id: int, title: String, tint: Color, base: Vector2, direction: float) -> void:
 	var team := GameTeam.new()
+	var settings: Dictionary = _team_config(id)
+	team.money = int(settings.get("money", team.money))
+	team.wood = int(settings.get("wood", team.wood))
+	for stat in settings.get("base_stats", {}):
+		team.base_stats[StringName(stat)] = float(settings["base_stats"][stat])
+	team.stats = team.base_stats.duplicate()
 	team.team_id = id
 	team.display_name = title
 	team.color = tint
@@ -169,7 +207,7 @@ func purchase(team_id: int, id: StringName, feedback: bool = true, route_id: int
 		if feedback:
 			notify("UNIT_CAP")
 		return false
-	var cost: int = WORKER_COST if is_worker else int(unit_data[id].money_cost)
+	var cost: int = worker_cost if is_worker else int(unit_data[id].money_cost)
 	if not team.spend(cost):
 		if feedback:
 			notify("INSUFFICIENT_GOLD")

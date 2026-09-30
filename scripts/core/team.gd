@@ -25,6 +25,7 @@ var base_stats: Dictionary = {
 	&"king_attack_speed": 1.0,
 	&"king_range": 225.0,
 	&"worker_speed": 105.0,
+	&"worker_health": 65.0,
 	&"worker_capacity": 12.0,
 	&"worker_gather": 3.0,
 	&"income": 10.0,

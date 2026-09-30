@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "scenarios": {
+    "baseline": {},
+    "economy_income_12": {"shared": {"base_stats": {"income": 12}}},
+    "worker_health_300": {"shared": {"base_stats": {"worker_health": 300}}},
+    "asymmetric_workers": {"teams": {"1": {"workers": 4}}}
+  },
+  "sweeps": {
+    "worker_health": {"base": "baseline", "path": "shared.base_stats.worker_health", "values": [65, 100]}
+  }
+}
