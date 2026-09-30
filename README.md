@@ -44,6 +44,20 @@ python3 tests/run_lab.py --suite all --seeds 42
 
 The runner locates Godot automatically when possible. Use `--godot /path/to/Godot` otherwise. It prints key measurements and writes JSON to `tests/artifacts/game_lab_report.json`; use `--output tests/artifacts/experiment.json` to keep a named comparison. Full matches run the actual scene tree at a fixed 60 Hz with a scripted AI commander in the human slot. They measure system behavior, not human play quality.
 
+### Watch simulation timelapses
+
+```sh
+python3 tests/run_lab.py --suite matches --seeds 42,43,44 --jobs 2 --output tests/artifacts/simulation_timelapse.json
+```
+
+Open `tests/artifacts/simulation_timelapse.html` in a browser. The offline report shows the whole battlefield, distinct unit roles, King health, army composition, workers, resources, and upgrades. Select a match and press **Play**; **16×** is the default speed. Drag the time slider or click a gold event marker to inspect a key moment, and hover units for health and route details. Playback stops at the result. Movement is interpolated between one-second observations; health and economy show sampled values. Older captures support sampled playback with fewer details.
+
+To watch an AI match live with full game graphics instead:
+
+```sh
+python3 tests/run_lab.py --suite matches --watch baseline --seeds 42
+```
+
 The optional in-game **How to Play** guide explains the objective, unit roles, routes, workers, towers, upgrades, and minimap.
 
 ## Languages and settings
