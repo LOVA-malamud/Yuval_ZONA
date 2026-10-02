@@ -6,9 +6,10 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 
 - Four independent commanders: human + ally AI versus two enemy AIs
 - Three lanes with terrain-aware A* navigation
-- Shared Gold and Wood economy, workers, gathering, and commander respawns
+- Shared Gold and finite Wood economy, exposed late-game gathering, and commander respawns
+- Gradual, interruptible base recovery and shared dash, guard, and heavy-strike abilities
 - Melee, ranged, and tank roles with distinct battlefield behavior
-- Nine build pads and three-level Guard Towers
+- Nine build pads with three-level Guard, Splash, and Long-range Towers
 - King and Economy upgrade tracks
 - Strategic minimap, responsive HUD, contextual onboarding, and pause/settings UI
 - Procedural visuals and original synthesized sound effects
@@ -20,13 +21,16 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | --- | --- |
 | `WASD` | Move the human commander |
 | Hold `Space` | Attack a nearby enemy |
+| `Shift` / `F` / `C` | Dash / guard / heavy strike, aimed toward the mouse |
 | `E` near a King or build pad | Open the relevant interaction |
 | Mouse wheel | Zoom the battlefield camera |
 | Route selector | Choose North, Center, or South for new recruits |
 | Army / King / Economy tabs | Recruit units and buy shared upgrades |
 | `Escape` | Pause, close the active panel, or resume |
 
-On a touchscreen, drag from the left side to move. The commander attacks nearby enemies while a movement touch is held. Use the on-screen Interact button near your King or a build pad. Commander strikes have a brief wind-up, and ranged shots travel toward the position aimed at when fired, so movement can avoid both. These touch controls are an initial mobile input pass; device layout and thumb comfort still need testing on phones.
+On a touchscreen, drag from the left side to move. Mobile auto-attack works independently of movement. Drag an ability button to aim and release to activate; drag back into the button to cancel. A quick tap follows your movement facing or a nearby target when stationary. Use Interact near your King to channel recovery or near a build pad to select a tower. Army, King, and Economy controls open in collapsible drawers. Landscape safe areas and a portrait rotate prompt are supported; thumb reach and dense-combat readability still require phone playtests.
+
+Heavy strike commits your facing through a visible 0.6-second wind-up. It deals 48 damage and briefly stuns commanders and troops when their guard fails. Front-facing guard and lateral dash provide counterplay; missing leaves you vulnerable during recovery.
 
 ## Text-only game lab
 
@@ -87,6 +91,6 @@ The packaging script stages production files only, adds Godot and project-asset 
 
 ## Project status
 
-This repository contains the completed **pre-playtest final polish** milestone. The current feature set, automated regressions, performance stress scenarios, bilingual layouts, complete simulated matches, and a native macOS export were verified before publication. Competitive balance, subjective audio feel, onboarding clarity, and dense-combat readability now require real human playtesting.
+The current branch implements the eight-issue gameplay rework: finite wood, gradual base healing, balanced AI deployment, commander abilities, tactical combat, tower choices, and a landscape mobile HUD. Automated checks and simulation evidence are documented in [the rework verification report](docs/rework-verification.md). Human combat and Android device acceptance remain pending; the issues should remain open until their acceptance checks are satisfied.
 
 Detailed evidence and limitations are recorded in [docs/verification.md](docs/verification.md). Supporting reports cover [performance](docs/performance-polish.md), [localization and onboarding](docs/localization-polish.md), [regression review](docs/regression-polish.md), and [macOS packaging](docs/export-polish.md).
