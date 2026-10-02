@@ -12,6 +12,24 @@ class MatchReportTests(unittest.TestCase):
         self.assertNotIn('<', payload)
         self.assertEqual(json.loads(payload), report)
 
+    def test_completed_duration_excludes_timeouts(self):
+        result = summarize([{"scenario": "integrated", "outcome": "win", "duration": 750,
+                             "metrics": {"heavy_hits": 4, "wood_remaining": 100}},
+                            {"scenario": "integrated", "outcome": "timeout", "duration": 1800}])["integrated"]
+        self.assertEqual(result["median_completed_duration"], 750)
+        self.assertEqual(result["completed_in_target"], 1)
+        self.assertEqual(result["median_heavy_hits"], 4)
+
+    def test_pairs_match_difficulty(self):
+        runs = [{"scenario": "baseline_easy", "seed": 42, "outcome": "win", "duration": 10,
+                 "effective_config": {"rules": {"difficulty": "easy"}}},
+                {"scenario": "baseline", "seed": 42, "outcome": "win", "duration": 20},
+                {"scenario": "integrated_easy", "seed": 42, "outcome": "win", "duration": 13,
+                 "effective_config": {"rules": {"difficulty": "easy"}}}]
+        result = summarize(runs)["integrated_easy"]
+        self.assertEqual(result["paired_runs"], 1)
+        self.assertEqual(result["median_paired_duration_delta"], 3)
+
     def test_failure_and_timeout_comparison(self):
         runs = [
             {"scenario": "baseline", "seed": 42, "outcome": "technical_failure"},

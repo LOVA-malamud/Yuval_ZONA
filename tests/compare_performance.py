@@ -19,28 +19,43 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--baseline', default='707a51a')
+    parser.add_argument('--baseline', default='7179af9')
+    parser.add_argument('--baseline-dir', type=Path, help='Use a preserved baseline project instead of git archive')
     parser.add_argument('--godot', default=shutil.which('godot'))
     parser.add_argument('--output', type=Path, default=ROOT / 'tests/artifacts/performance_overhaul')
     args = parser.parse_args()
+    if not args.godot:
+        parser.error('Godot unavailable; supply --godot')
+    if args.baseline_dir and not (args.baseline_dir / 'project.godot').is_file():
+        parser.error('--baseline-dir must contain project.godot')
     args.output.mkdir(parents=True, exist_ok=True)
     reports = []
     for version in ('baseline', 'current'):
         with tempfile.TemporaryDirectory(prefix='crownfront-performance-') as temporary:
             stage = Path(temporary) / 'project'
             if version == 'baseline':
-                stage.mkdir()
-                archive = subprocess.check_output(['git', 'archive', args.baseline], cwd=ROOT)
-                with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
-                    bundle.extractall(stage, filter='data')
+                if args.baseline_dir:
+                    shutil.copytree(args.baseline_dir, stage, ignore=shutil.ignore_patterns('.git', '.godot', '.aws', '.codex', 'artifacts', 'builds', '__pycache__'))
+                else:
+                    stage.mkdir()
+                    archive = subprocess.check_output(['git', 'archive', args.baseline], cwd=ROOT)
+                    with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
+                        if hasattr(tarfile, 'data_filter'):
+                            bundle.extractall(stage, filter='data')
+                        else:
+                            # Git archive of a local revision contains repository paths.
+                            bundle.extractall(stage)
                 fixture = stage / 'tests/performance_probe.gd'
                 source = fixture.read_text()
-                source = source.replace('\t\tvar after_units := Time.get_ticks_usec()',
-                    '\t\tfor projectile in get_nodes_in_group("projectiles"):\n'
-                    '\t\t\tif not projectile.is_queued_for_deletion():\n'
-                    '\t\t\t\tprojectile._physics_process(STEP)\n'
-                    '\t\tvar after_units := Time.get_ticks_usec()')
-                fixture.write_text(source)
+                corrected = False
+                if 'game.session.step()' not in source:
+                    replacement = ('\t\tfor projectile in get_nodes_in_group("projectiles"):\n'
+                        '\t\t\tif not projectile.is_queued_for_deletion():\n'
+                        '\t\t\t\tprojectile._physics_process(STEP)\n'
+                        '\t\tvar after_units := Time.get_ticks_usec()')
+                    updated = source.replace('\t\tvar after_units := Time.get_ticks_usec()', replacement)
+                    corrected = updated != source
+                    fixture.write_text(updated)
             else:
                 shutil.copytree(ROOT, stage, ignore=shutil.ignore_patterns('.git', '.godot', '.aws', '.codex', 'artifacts', 'builds', '__pycache__'))
             (stage / 'tests/artifacts').mkdir(exist_ok=True)
@@ -67,7 +82,8 @@ def main():
         current = median(r['metrics']['total_script_ms'][metric] for r in reports if r['label'].startswith('current'))
         summary[metric] = dict(baseline_ms=baseline, current_ms=current, change_percent=(current / baseline - 1) * 100)
     payload = dict(hardware=platform.uname()._asdict(), baseline=args.baseline, runs=reports, summary=summary,
-                   baseline_correction='Added missing projectile physics update; otherwise original fixture.',
+                   baseline_directory=str(args.baseline_dir.resolve()) if args.baseline_dir else None,
+                   baseline_correction='Added missing projectile physics update.' if corrected else 'None; baseline advances the shared session.',
                    needs_investigation=summary['p95']['change_percent'] > 10)
     (args.output / 'comparison.json').write_text(json.dumps(payload, indent=2) + '\n')
     print(json.dumps(summary, indent=2))

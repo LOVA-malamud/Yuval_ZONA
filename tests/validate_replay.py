@@ -9,7 +9,7 @@ from pathlib import Path
 
 def validate(run):
     assert run['outcome'] in ('win', 'timeout'), run.get('error')
-    assert run['replay_version'] in (2, 3)
+    assert run['replay_version'] in (2, 3, 4)
     geometry = run['map']
     assert len(geometry['size']) == 2 and all(x > 0 for x in geometry['size'])
     assert geometry['lanes'] and geometry['pads']
@@ -29,6 +29,13 @@ def validate(run):
             identity = (entity[0], entity[1], entity[7])
             assert identities.setdefault(entity[5], identity) == identity, 'ID changed role or team'
             assert entity[6] > 0 and 0 <= entity[4] <= entity[6]
+        if run['replay_version'] >= 4:
+            assert frame['wood_remaining'] == sum(tree[2] for tree in frame['trees'])
+            assert all(len(tree) == 5 and 0 <= tree[2] <= tree[3] for tree in frame['trees'])
+            live_towers = {str(e[5]) for e in frame['entities'] if e[1] == 'tower'}
+            assert set(frame['tower_types']) == live_towers
+            assert all(kind in ('guard', 'splash', 'long_range') for kind in frame['tower_types'].values())
+            assert all(len(counts) == 3 and all(n >= 0 for n in counts) for counts in frame['deployment'].values())
         for team in frame['teams']:
             composition = Counter(e[1] for e in frame['entities'] if e[0] == team['id'])
             army_kinds = [kind for kind, definition in run.get('entity_definitions', {}).items() if definition['category'] == 'army'] or ['melee', 'ranged', 'tank']

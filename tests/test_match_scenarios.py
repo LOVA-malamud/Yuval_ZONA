@@ -26,6 +26,18 @@ class MatchScenarioTests(unittest.TestCase):
             with self.subTest(config=config), self.assertRaises(ValueError):
                 validate(config)
 
+    def test_rework_fields(self):
+        validate({"shared": {"balance": {"heavy_stun": 0.5, "guard_damage_reduction": 0.7},
+                              "deployment": {"window_size": 30, "tolerance": 0},
+                              "towers": {"long_range": {"minimum_range": 100, "splash_radius": 0, "wood_cost": 100}},
+                              "groves": [{"center": [450, 900], "count": 8, "wood": 100, "zone": "home"}]}})
+        for shared in ({"deployment": {"window_size": 0}}, {"deployment": {"tolerance": 1.5}},
+                       {"balance": {"guard_damage_reduction": 1.1}}, {"towers": {"unknown": {}}},
+                       {"groves": [{"center": [2400, 900], "count": 8, "wood": 100, "zone": "home"}]}):
+            with self.subTest(shared=shared), self.assertRaises(ValueError):
+                validate({"shared": shared})
+        self.assertEqual(len(load(Path(__file__).parent / "scenarios/integrated_rework.json")), 3)
+
     def test_timeout_failure_and_html(self):
         runs = [{"scenario": "a", "outcome": "timeout", "duration": 10, "first_king_damage": -1, "candidate_team": 1}, {"scenario": "a", "outcome": "technical_failure", "candidate_team": 1}]
         summary = summarize(runs)["a"]
