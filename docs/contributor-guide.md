@@ -53,3 +53,11 @@ Run `python3 tests/compare_performance.py` (headless) and `python3 tests/compare
 `main` combines the commander overhaul with finite wood, shared combat abilities, team deployment history, tower definitions and mobile drawers. Tower resources live under `resources/towers/`; the catalog resolves their content IDs. Custom finite grove layouts use `MapDefinition.tree_groves` and scenario `groves` overrides. The fast suite includes combat, economy/towers, deployment policy, HUD and economy pacing fixtures alongside the existing lifecycle, coordination and difficulty checks.
 
 See [branch integration](branch-integration.md) for merge decisions and [rework verification](rework-verification.md) for remaining acceptance work. Historical pacing targets and performance numbers above apply to their earlier snapshots; rerun experiments before judging the combined gameplay.
+
+## Working with other developers
+
+Create feature branches from a freshly fetched `origin/main`. Keep commits focused and include the concrete behavior changed, relevant checks and unresolved limitations in the pull request. Preserve Godot `.uid` files when moving scripts and update resource references together. Keep English/Russian keys and placeholders aligned.
+
+Before integrating a shared branch, fetch origin and review both histories; preserve other developers' commits and uncommitted work. Prefer merging main into an already shared feature branch over rewriting its published commits. Push main normally so Git rejects a concurrent update; investigate a rejected push instead of forcing it. Leave source branches intact unless their owners agree to cleanup.
+
+For verification evidence, record the source commit (and any uncommitted changes), engine version, suite/command, platform and outcome. Separate static checks, engine/runtime checks, rendered/input checks and physical-device acceptance. Ignored local artifacts are not available to teammates: preserve a concise result in tracked documentation and attach reproducible CI artifacts where available. Do not reuse an earlier snapshot's pass as acceptance of a later integration. See [the integration handoff](branch-integration.md#publication-and-developer-handoff) for this merge's provenance and update commands.

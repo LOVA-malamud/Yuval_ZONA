@@ -27,4 +27,20 @@ Combined source passes project/resource validation (104 Godot files, 125 resourc
 
 The initial pre-merge local fast run passed its three static checks but failed import on a sandbox TCP socket restriction. The fetched docs record a prior request to avoid launching Godot; no further engine checks were run after discovering it. Therefore combined-source engine parsing/runtime, render/input checks, pacing/performance comparisons and physical mobile acceptance remain pending. Older local full/desktop reports do not verify this integration. Android packaging is prepared; no rework APK is established as built.
 
-This integration updates local `main`. Remote publication is separate from the local merge; no force push or branch deletion is required.
+## Publication and developer handoff
+
+Integration commit: `65b96f3`. Its parents are `d80d80e` (local overhaul and preserved documentation edits) and `078b942` (fetched gameplay rework). The merge retains each original commit and its authorship. `main` advanced from `51c99dc` by fast-forward to this merge. A subsequent documentation commit records this handoff.
+
+Publication to `origin/main` was explicitly authorized on October 3, 2026. Immediately before publication, origin was fetched again and `origin/main` remained at `51c99dc`. Publish with an ordinary `git push origin main`; a concurrent remote update must cause rejection rather than history replacement. No force push, remote source-branch update or branch deletion is part of this integration. Publication success is established by checking that `refs/heads/main` on origin equals local `HEAD`, rather than by this document alone.
+
+Developers with a clean local `main` can update with:
+
+```sh
+git fetch origin
+git switch main
+git merge --ff-only origin/main
+```
+
+If the fast-forward fails because local commits exist, preserve those commits on a branch and review the divergence before merging. Do not reset or force-push shared history. For ongoing feature branches, merge `origin/main` into the feature branch and review any conflicts against the decisions above. Existing branch names are retained for provenance; their presence does not mean their old changes are missing from main.
+
+Treat this as a source integration, with the validation limits recorded above. Review CI for the published commit before treating the engine gate as passed. Human combat/mobile acceptance, Android packaging, full-match tuning and performance remain open; this publication does not close issues #1–#8 or establish a release.
