@@ -94,14 +94,16 @@ func _run() -> void:
 	foe.configure(game.teams[1], game, game.unit_data[&"tank"])
 	foe.position = actor.position + Vector2(45, 0)
 	game.entities.add_child(foe)
+	control.mobile_auto_attack = true
 	var hp_before: float = foe.health
 	touch.pressed = true
 	control._unhandled_input(touch)
 	control._input(drag)
 	_step(10)
-	_check(foe.health < hp_before, "movement touch attacks automatically")
+	_check(foe.health < hp_before, "mobile auto-attack works while using movement touch")
 	touch.pressed = false
 	control._input(touch)
+	control.mobile_auto_attack = false
 	actor.cooldown = 0.0
 	actor.strike_remaining = 0.0
 	actor.strike_target = null
@@ -162,7 +164,10 @@ func _run() -> void:
 	actor.health = actor.max_health - 30.0
 	control.set_scripted_command(Vector2.ZERO, false, true)
 	_step(1)
-	_check(is_equal_approx(actor.health, actor.max_health), "scripted interaction uses the real King heal")
+	_check(actor.healing and actor.health < actor.max_health, "scripted interaction starts gradual King healing")
+	for healing_tick in range(60):
+		actor.step_gameplay(1.0 / 60.0)
+	_check(is_equal_approx(actor.health, actor.max_health), "King healing restores missing health over time")
 	control.reset_touch()
 	_check(control.touch_index == -1 and control.touch_direction == Vector2.ZERO, "touch reset clears movement")
 	control.clear_scripted_command()

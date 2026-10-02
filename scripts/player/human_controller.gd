@@ -13,6 +13,8 @@ var scripted_attack: bool = false
 var scripted_interact: bool = false
 var target: CombatEntity
 var focus_target: CombatEntity
+var mobile_auto_attack: bool = OS.has_feature("mobile")
+var pending_abilities: Array[Dictionary] = []
 
 
 func set_scripted_command(direction: Vector2, attack: bool = true, interact: bool = false) -> void:
@@ -33,7 +35,14 @@ func drive(actor, delta: float) -> void:
 	var direction: Vector2 = scripted_direction if scripted else Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if not scripted and touch_index >= 0:
 		direction = touch_direction
-	var attacking: bool = scripted_attack if scripted else (Input.is_action_pressed("attack") or touch_index >= 0)
+	if not scripted:
+		for key in ["ability_dash", "ability_guard", "ability_heavy"]:
+			if InputMap.has_action(key) and Input.is_action_just_pressed(key):
+				request_ability(StringName(key.trim_prefix("ability_")), actor.global_position.direction_to(actor.get_global_mouse_position()))
+	for request in pending_abilities:
+		actor.game.session.execute(MatchCommand.new(MatchCommand.Action.ABILITY, actor.commander_id, request))
+	pending_abilities.clear()
+	var attacking: bool = scripted_attack if scripted else (Input.is_action_pressed("attack") or (mobile_auto_attack and not actor.healing))
 	if not actor.valid_enemy(focus_target) or actor.edge_distance(focus_target) > actor.detection_range or not actor.game.navigation.clear_line(actor.position, focus_target.position):
 		focus_target = null
 	actor.game.session.execute(MatchCommand.new(MatchCommand.Action.INPUT, actor.commander_id, {"direction": direction, "attack": attacking, "interact": scripted_interact or (not scripted and Input.is_action_just_pressed("interact")), "target": focus_target, "delta": delta}))
@@ -74,7 +83,18 @@ func _input(event: InputEvent) -> void:
 		touch_direction = offset.limit_length(1.0) if offset.length() >= DEAD_ZONE else Vector2.ZERO
 
 
+func request_ability(ability_id: StringName, direction: Vector2 = Vector2.ZERO) -> void:
+	var actor = get_parent()
+	if direction.length_squared() < 0.001:
+		direction = touch_direction
+		if direction.length_squared() < 0.001:
+			direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
+		if direction.length_squared() < 0.001:
+			direction = actor.global_position.direction_to(focus_target.global_position) if actor.valid_enemy(focus_target) else actor.facing
+	pending_abilities.append({"ability_id": ability_id, "direction": direction.normalized()})
+
 func reset_touch() -> void:
+	pending_abilities.clear()
 	touch_index = -1
 	touch_direction = Vector2.ZERO
 	target = null

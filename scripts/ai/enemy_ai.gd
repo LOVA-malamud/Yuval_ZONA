@@ -19,6 +19,11 @@ var order: StringName = &"auto"
 var planned_purchase: StringName = &""
 var reserved_gold: int = 0
 var reserved_wood: int = 0
+var recovering: bool = false
+var ability_timer: float = 0.0
+var observed_heavy_id: int = -1
+var reaction_remaining: float = -1.0
+var tower_id: StringName = &"guard"
 var roster: Array[StringName] = [&"tank", &"melee", &"ranged", &"melee", &"ranged"]
 
 func _ready() -> void:
@@ -50,49 +55,34 @@ func step_gameplay(delta: float) -> void:
 		build_goal = null
 	var reserve: int = game.balance.ally_money_reserve if personality == "ally" else 20
 	var wood_reserve: int = game.balance.ally_wood_reserve if personality == "ally" else 0
-	if decision_count % 5 == 1:
-		route_id = (int(game.match_seconds / 90.0) + team.team_id + game.strategy_seed % 3) % 3
-		if personality == "economic" and decision_count % 10 == 1:
-			route_id = (route_id + 1) % 3
-		# Reinforce established pressure rather than abandoning it on a fixed rotation.
-		var pressure: Array[float] = [0.0, 0.0, 0.0]
-		for unit in game.entities.get_children():
-			if unit is CombatEntity and unit.alive and unit.team == team and unit.category == &"army":
-				pressure[unit.route_id] += 1.0 + minf(1.0,unit.position.distance_to(team.base_position)/3800.0)
-		var best: int = 0
-		for lane in range(1,3):
-			if pressure[lane] > pressure[best]:
-				best = lane
-		if pressure[best] >= 4.0:
-			route_id = best
-		# A visible threat biases the next group toward its approach lane.
-		if actor.valid_enemy(base_threat):
-			route_id = game.coordination.closest_lane(base_threat.position)
+	route_id = _deployment_lane()
 	if order == &"auto" and personality != "aggressive" and decision_count % 4 == 1 and team.worker_count >= 3 and team.wood >= game.balance.tower_wood + wood_reserve:
 		build_goal = _choose_pad()
+		if build_goal != null:
+			tower_id = _choose_tower()
 	if order in [&"north", &"center", &"south"]:
 		route_id = [&"north", &"center", &"south"].find(order)
-	elif game.rules.difficulty == &"hard" and order == &"auto" and not actor.valid_enemy(base_threat):
-		route_id = (int(game.match_seconds / 90.0) + team.team_id + game.strategy_seed % 3) % 3
-	reserved_gold = game.balance.tower_money if build_goal != null else 0
-	reserved_wood = game.balance.tower_wood if build_goal != null else 0
+	reserved_gold = _tower_money() if build_goal != null else 0
+	reserved_wood = _tower_wood() if build_goal != null else 0
 	if build_goal != null and not team.can_afford(reserved_gold, reserved_wood):
 		build_goal = null
 		reserved_gold = 0
 		reserved_wood = 0
 	# Both controllers respect one teammate's announced construction budget.
 	var construction_pending: bool = false
+	var construction_budget: int = 0
 	for commander in game.commanders:
-		if commander.team == team and commander.controller.get("build_goal") != null:
+		if commander != actor and commander.team == team and commander.controller.get("build_goal") != null:
 			construction_pending = true
+			construction_budget = maxi(construction_budget, int(commander.controller.get("reserved_gold")))
 	if construction_pending:
-		reserve += game.balance.tower_money
+		reserve += construction_budget
 	if team.money < reserve + 50:
 		return
-	if team.worker_count < (5 if personality == "economic" else 4) and (personality != "aggressive" or team.worker_count < 2):
+	if _has_gatherable_wood() and team.worker_count < (5 if personality == "economic" else 4) and (personality != "aggressive" or team.worker_count < 2):
 		_recruit(&"worker")
-	elif build_goal != null and team.can_afford(reserve, game.balance.tower_wood + wood_reserve) and game.nearest_pad(actor) == build_goal:
-		game.build_tower(actor, build_goal)
+	elif build_goal != null and team.can_afford(_tower_money() + reserve, _tower_wood() + wood_reserve) and game.nearest_pad(actor) == build_goal:
+		game.build_tower(actor, build_goal, tower_id)
 		build_goal = null
 	else:
 		var group_size: int = 5 if personality == "aggressive" else 2
@@ -144,14 +134,23 @@ func drive(body, delta: float) -> void:
 				friends += 1
 		if friends >= 4 and (body.valid_enemy(target) or (game.rules.difficulty == &"hard" and friends >= 6)):
 			game.session.execute(MatchCommand.new(MatchCommand.Action.RALLY, actor.commander_id))
+	ability_timer = maxf(0.0, ability_timer - delta)
+	if reaction_remaining > 0.0:
+		reaction_remaining = maxf(0.0, reaction_remaining - delta)
 	if body.health < body.max_health * 0.3:
+		recovering = true
+	if recovering and body.health >= body.max_health:
+		recovering = false
+	if recovering:
 		body.tactical_status = "STATUS_RESUPPLY"
 		route.clear()
-		_intent({"goal": team.base_position + Vector2(0, 110)}, delta)
-		if body.position.distance_to(team.base_position) < 180:
+		if body.position.distance_to(team.base_position) >= maxf(1.0, game.balance.base_heal_radius - 10.0):
+			_intent({"goal": team.base_position + Vector2(0, minf(110.0, game.balance.base_heal_radius * 0.5))}, delta)
+		elif body.heal_cooldown <= 0.0:
 			_intent({"interact": true}, delta)
 	elif body.valid_enemy(target):
 		body.tactical_status = "STATUS_ENGAGING"
+		_use_combat_ability(body)
 		if body.edge_distance(target) <= body.attack_range:
 			_intent({"attack": true, "target": target}, delta)
 		else:
@@ -171,7 +170,7 @@ func drive(body, delta: float) -> void:
 		_intent({"goal": build_goal.position}, delta)
 		var reserve: int = game.balance.ally_money_reserve if personality == "ally" else 0
 		var wood_reserve: int = game.balance.ally_wood_reserve if personality == "ally" else 0
-		if team.can_afford(game.balance.tower_money + reserve, game.balance.tower_wood + wood_reserve) and game.build_tower(actor, build_goal):
+		if team.can_afford(_tower_money() + reserve, _tower_wood() + wood_reserve) and game.build_tower(actor, build_goal, tower_id):
 			build_goal = null
 	else:
 		var defend: bool = order == &"auto" and personality != "aggressive" and fmod(game.match_seconds + actor.commander_id * 7.0, 100.0) < 52.0
@@ -192,6 +191,10 @@ func drive(body, delta: float) -> void:
 			_intent({"goal": route[route_index], "speed_limit": 100.0}, delta)
 
 func reset_orders() -> void:
+	recovering = false
+	ability_timer = 0.0
+	observed_heavy_id = -1
+	reaction_remaining = -1.0
 	target = null
 	base_threat = null
 	route.clear()
@@ -214,8 +217,80 @@ func set_order(value: StringName) -> void:
 
 func _recruit(id: StringName) -> bool:
 	planned_purchase = id
+	if id != &"worker":
+		route_id = _deployment_lane()
 	return game.session.execute(MatchCommand.new(MatchCommand.Action.RECRUIT, actor.commander_id, {"id": id, "route": route_id})).success
 
 func _intent(payload: Dictionary, delta: float) -> void:
 	payload["delta"] = delta
 	game.session.execute(MatchCommand.new(MatchCommand.Action.INPUT, actor.commander_id, payload))
+
+func _deployment_lane() -> int:
+	if order in [&"north", &"center", &"south"]:
+		return [&"north", &"center", &"south"].find(order)
+	if actor.valid_enemy(base_threat):
+		return game.coordination.closest_lane(base_threat.position)
+	return game.deployment_policy.choose_lane(team.team_id, rng)
+
+func _use_combat_ability(body) -> void:
+	if not body.valid_enemy(target):
+		observed_heavy_id = -1
+		reaction_remaining = -1.0
+		return
+	var direction: Vector2 = body.position.direction_to(target.position)
+	var visible_heavy: bool = target.category == &"commander" and target.get("action_state") == &"heavy" and body.edge_distance(target) < 140.0 and game.navigation.clear_line(body.position, target.position)
+	if visible_heavy:
+		if observed_heavy_id != target.match_id:
+			observed_heavy_id = target.match_id
+			reaction_remaining = rng.randf_range(0.15, 0.30)
+			if game.rules.difficulty == &"easy":
+				reaction_remaining = rng.randf_range(0.35, 0.55)
+			elif game.rules.difficulty == &"hard":
+				reaction_remaining = rng.randf_range(0.12, 0.22)
+		if reaction_remaining == 0.0 and body.action_state == &"ready" and body.stun_remaining <= 0.0:
+			reaction_remaining = -1.0
+			var opponent_facing: Vector2 = target.get("facing")
+			var incoming: bool = absf(opponent_facing.angle_to(-direction)) <= deg_to_rad(40.0)
+			if incoming and float(body.ability_cooldowns.get(&"guard", 0.0)) <= 0.0:
+				_request_ability(&"guard", direction)
+			elif float(body.ability_cooldowns.get(&"dash", 0.0)) <= 0.0:
+				_request_ability(&"dash", direction.orthogonal() * (-1.0 if rng.randf() < 0.5 else 1.0))
+		return
+	observed_heavy_id = -1
+	reaction_remaining = -1.0
+	if ability_timer > 0.0 or body.action_state != &"ready" or body.stun_remaining > 0.0:
+		return
+	ability_timer = 0.35 if game.rules.difficulty == &"hard" else 0.65
+	if game.rules.difficulty == &"easy":
+		ability_timer = 1.1
+	if body.edge_distance(target) <= body.attack_range and rng.randf() < 0.40 and float(body.ability_cooldowns.get(&"heavy", 0.0)) <= 0.0:
+		_request_ability(&"heavy", direction)
+	elif body.edge_distance(target) > body.attack_range + 110.0 and rng.randf() < 0.25 and float(body.ability_cooldowns.get(&"dash", 0.0)) <= 0.0:
+		_request_ability(&"dash", direction)
+
+func _request_ability(id: StringName, direction: Vector2) -> void:
+	game.session.execute(MatchCommand.new(MatchCommand.Action.ABILITY, actor.commander_id, {"ability_id": id, "direction": direction}))
+
+func _tower_money() -> int:
+	return int(game.tower_data[tower_id].money_cost)
+
+func _tower_wood() -> int:
+	return int(game.tower_data[tower_id].wood_cost)
+
+func _choose_tower() -> StringName:
+	var nearby_enemies: int = 0
+	for unit in game.entities.get_children():
+		if unit is CombatEntity and actor.valid_enemy(unit) and unit.position.distance_to(actor.position) <= 340.0 and game.navigation.clear_line(actor.position, unit.position):
+			nearby_enemies += 1
+	var preferred: StringName = &"splash" if nearby_enemies >= 3 else &"long_range" if personality == "economic" else &"guard"
+	if game.tower_data.has(preferred):
+		var definition = game.tower_data[preferred]
+		if team.can_afford(definition.money_cost, definition.wood_cost):
+			return preferred
+	return &"guard"
+
+func _has_gatherable_wood() -> bool:
+	for tree in game.get_node("Trees").get_children():
+		if tree.wood_remaining > 0:
+			return true
+	return false

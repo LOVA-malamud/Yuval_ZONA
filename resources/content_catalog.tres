@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="ContentCatalog" load_steps=15 format=3]
+[gd_resource type="Resource" script_class="ContentCatalog" load_steps=18 format=3]
 
 [ext_resource type="Script" path="res://scripts/core/content_catalog.gd" id="1"]
 [ext_resource type="Resource" path="res://resources/units/melee.tres" id="2"]
@@ -15,9 +15,15 @@
 [ext_resource type="PackedScene" path="res://scenes/units/combat_unit.tscn" id="13"]
 [ext_resource type="PackedScene" path="res://scenes/workers/worker.tscn" id="14"]
 
+[ext_resource type="Resource" path="res://resources/towers/guard.tres" id="15"]
+[ext_resource type="Resource" path="res://resources/towers/splash.tres" id="16"]
+[ext_resource type="Resource" path="res://resources/towers/long_range.tres" id="17"]
+
 [resource]
 script = ExtResource("1")
 units = Array[Resource]([ExtResource("2"), ExtResource("3"), ExtResource("4")])
 upgrades = Array[Resource]([ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("8"), ExtResource("9"), ExtResource("10"), ExtResource("11"), ExtResource("12")])
 army_scene = ExtResource("13")
 worker_scene = ExtResource("14")
+
+towers = Array[Resource]([ExtResource("15"), ExtResource("16"), ExtResource("17")])

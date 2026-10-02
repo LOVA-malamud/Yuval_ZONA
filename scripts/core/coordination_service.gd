@@ -154,7 +154,7 @@ func revalidate_plans() -> void:
 	for commander in game.commanders:
 		var bot = commander.controller
 		if bot.has_method("set_order") and bot.build_goal != null:
-			if not commander.alive or not is_instance_valid(bot.build_goal) or bot.build_goal.occupied() or not commander.team.can_afford(game.balance.tower_money, game.balance.tower_wood):
+			if not commander.alive or not is_instance_valid(bot.build_goal) or bot.build_goal.occupied() or not commander.team.can_afford(bot.reserved_gold, bot.reserved_wood):
 				bot.build_goal = null
 				bot.reserved_gold = 0
 				bot.reserved_wood = 0

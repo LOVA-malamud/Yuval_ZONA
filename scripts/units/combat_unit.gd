@@ -15,6 +15,8 @@ func step_gameplay(delta: float) -> void:
 	if not alive:
 		return
 	tick(delta)
+	if stun_remaining > 0.0:
+		return
 	regroup_remaining = maxf(0.0, regroup_remaining - delta)
 	if practice_unit:
 		return
