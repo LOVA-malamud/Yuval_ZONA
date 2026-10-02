@@ -13,7 +13,15 @@ func setup(owner_game) -> void:
 	offset_right = -16
 	offset_top = 102
 	var column := VBoxContainer.new()
-	add_child(column)
+	if game.force_touch_controls or DisplayServer.is_touchscreen_available():
+		var scroll := ScrollContainer.new()
+		scroll.custom_minimum_size = Vector2(332, 320)
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		add_child(scroll)
+		column.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(column)
+	else:
+		add_child(column)
 	var title := Label.new()
 	title.text = "COMMAND_TITLE"
 	column.add_child(title)
@@ -27,7 +35,7 @@ func setup(owner_game) -> void:
 	column.add_child(order_selector)
 	intent = Label.new()
 	intent.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	intent.custom_minimum_size.x = 360
+	intent.custom_minimum_size.x = 312 if game.force_touch_controls or DisplayServer.is_touchscreen_available() else 360
 	column.add_child(intent)
 	purchases = Label.new()
 	purchases.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

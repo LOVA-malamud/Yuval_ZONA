@@ -47,14 +47,14 @@ func _draw() -> void:
 		)
 	super._draw()
 
-func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0) -> void:
+func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0, source_position: Vector2 = Vector2.INF) -> void:
 	if game.tutorial != null and team.team_id == 2 and game.tutorial.stage != TutorialDirector.Stage.KING:
 		return
 	if not alive or not team.is_enemy(attacker_team_id) or amount <= 0:
 		return
 	recent_damage += amount
 	damage_window = 6.0
-	super.take_damage(amount, attacker_team_id, source_commander_id)
+	super.take_damage(amount, attacker_team_id, source_commander_id, source_position)
 	if alive and (recent_damage >= max_health * 0.07 or health < max_health * 0.35):
 		danger_remaining = 6.0
 		if game.coordination != null:

@@ -89,7 +89,9 @@ func _find_tree() -> void:
 	tree = null
 	for node in game.get_node("Trees").get_children():
 		var candidate := node as TreeResource
-		if not candidate.available() or (danger_timer > 0 and candidate.position.distance_to(danger_point) < 340):
+		if candidate == null or not candidate.available() or (danger_timer > 0 and candidate.position.distance_to(danger_point) < 340):
+			continue
+		if not game.navigation.walkable(candidate.global_position, body_radius + 1.0):
 			continue
 		# Prefer safe, short trips near this team's storage, even after respawning.
 		var distance: float = team.base_position.distance_to(candidate.global_position)
@@ -97,6 +99,9 @@ func _find_tree() -> void:
 			if is_instance_valid(worker) and worker.alive and worker != self and worker.kind == &"worker" and worker.tree == candidate:
 				distance += 100.0
 		if distance < best_distance:
+			var path: PackedVector2Array = game.navigation.path(global_position, candidate.global_position)
+			if path.is_empty() or path[-1].distance_to(candidate.global_position) > 42.0:
+				continue
 			best_distance = distance
 			tree = candidate
 	if tree != null:

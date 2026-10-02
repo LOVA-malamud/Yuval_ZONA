@@ -51,7 +51,7 @@ func step_gameplay(delta: float) -> void:
 				struck = entity
 	if struck != null:
 		var amount: float = base_damage * (structure_multiplier if struck.kind in [&"king", &"tower"] else 1.0)
-		struck.take_damage(amount, owner_team_id, source_commander_id)
+		struck.take_damage(amount, owner_team_id, source_commander_id, global_position - direction * 20.0)
 		game.spawn_effect(global_position + direction * nearest, Color("e6c28b"), "impact")
 		queue_free()
 		return

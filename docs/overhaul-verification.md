@@ -1,5 +1,7 @@
 # Command and coordination overhaul acceptance
 
+Historical evidence for the local commander-overhaul snapshot through `8c28682`. This code is now integrated into `main` with a newer gameplay rework; these results do not verify the combined source. See [integration record](branch-integration.md) and [current rework acceptance](rework-verification.md).
+
 Branch: `feat/command-and-coordination-overhaul`; original reference: `707a51a` on `dardal_improvements`. Runtime evidence uses Godot 4.7.2 stable on native Linux. Earlier macOS/Godot 4.6.2 reports remain historical and do not verify this overhaul.
 
 ## Completed integration checks
@@ -23,7 +25,7 @@ An earlier desktop composite initially failed because its native fixture used th
 
 The original three-seed historical reference completed at 761.35 seconds, 1240.67 seconds and one 1800-second timeout. That small sample establishes provenance, not a pacing conclusion. Intermediate feature captures are retained locally but are not the final tuning evidence.
 
-## Final measurements in progress
+## Historical measurements and pending pacing
 
 The previous baseline and partial factorial sweep are superseded. A new battle-trace regression reproduced a frame-rate-dependent Rally at tick 53: AI counted dead troops awaiting render-frame deletion. AI now counts living actors in the match registry, and the same death/projectile trace passes at both 30 and 60 FPS. Earlier pacing data is archived under `tests/artifacts/overhaul_pacing_before_registry_fix`; it must not determine final tuning.
 
@@ -31,7 +33,7 @@ The final experiment reruns all 160 comparisons on the corrected source: seeds 4
 
 Three sequential headless capacity comparisons include projectile updates and all 115 actors. Registry caching and avoiding hidden command-panel refreshes reduced the observed regression; the current median p95 is 5.891 ms versus 5.031 ms, a 17.1% increase (0.860 ms). This remains a measured CPU cost. Rendered comparison p50 improved from 3.887 ms to 3.445 ms; p95 increased from 9.145 ms to 10.100 ms (+10.4%), and median per-run maximum increased from 15.132 ms to 17.735 ms (+17.2%). Reports and exact 1280×720 images are in `tests/artifacts/performance_overhaul_rendered`. Both stress comparisons exceed the investigation threshold. The fixed session performs command validation, coordination and two spatial refreshes each authoritative tick; actor-list caching and hidden-panel throttling reduce allocations, but do not remove this cost. The frame distribution also changes with the fixed clock, so improved median frame time does not establish uniformly better performance. The first rendered attempt exposed a baseline fixture dimension assertion that compared its SubViewport image to the compositor-resized root window. The fixture now compares against the requested render surface.
 
-Final pacing selection and final-source full-match verification remain pending. Do not interpret a pending measurement as a pass.
+Final pacing selection remains unverified. The local `overhaul_final_full` report at `8c28682` passes 20 checks including three matches and replay validation; the merged rework needs its own full-match verification. Do not interpret a pending measurement as a pass.
 
 ## Scope and limits
 

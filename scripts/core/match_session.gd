@@ -122,6 +122,13 @@ func execute(command: MatchCommand) -> CommandResult:
 	var before := Vector2i(commander.team.money, commander.team.wood)
 	var event_type: StringName = &""
 	match command.action:
+		MatchCommand.Action.ABILITY:
+			if not commander.alive or not typeof(values.get("ability_id")) in [TYPE_STRING, TYPE_STRING_NAME] or typeof(values.get("direction")) != TYPE_VECTOR2:
+				return CommandResult.new(false, &"invalid_request")
+			var direction: Vector2 = values.direction
+			if not direction.is_finite() or direction.length_squared() < 0.0001:
+				return CommandResult.new(false, &"invalid_input")
+			success = commander.activate_ability(StringName(values.ability_id), direction.normalized())
 		MatchCommand.Action.RECRUIT:
 			if not typeof(values.get("id")) in [TYPE_STRING, TYPE_STRING_NAME] or typeof(values.get("route")) != TYPE_INT:
 				return CommandResult.new(false, &"invalid_request")
@@ -142,7 +149,9 @@ func execute(command: MatchCommand) -> CommandResult:
 			if typeof(values.get("pad")) != TYPE_OBJECT or not is_instance_valid(values.pad):
 				return CommandResult.new(false, &"invalid_target")
 			event_type = &"tower_built"
-			success = game._build_tower(commander, values.get("pad"))
+			if not typeof(values.get("tower_id", &"guard")) in [TYPE_STRING, TYPE_STRING_NAME]:
+				return CommandResult.new(false, &"invalid_request")
+			success = game._build_tower(commander, values.get("pad"), StringName(values.get("tower_id", &"guard")))
 		MatchCommand.Action.UPGRADE_TOWER:
 			if typeof(values.get("pad")) != TYPE_OBJECT or not is_instance_valid(values.pad):
 				return CommandResult.new(false, &"invalid_target")
@@ -185,7 +194,7 @@ func execute(command: MatchCommand) -> CommandResult:
 		elif event_type == &"tower_built":
 			created = values.pad.tower
 			created.owner_commander_id = commander.commander_id
-		game.coordination.purchase(commander, event_type, values.get("id", &"tower"), before.x - commander.team.money, before.y - commander.team.wood, created)
+		game.coordination.purchase(commander, event_type, values.get("id", values.get("tower_id", &"guard")), before.x - commander.team.money, before.y - commander.team.wood, created)
 	if success and event_type != &"" and game.coordination != null:
 		game.coordination.revalidate_plans()
 	return CommandResult.new(success, &"ok" if success else &"unavailable")

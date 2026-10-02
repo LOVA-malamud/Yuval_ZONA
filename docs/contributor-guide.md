@@ -22,9 +22,9 @@ Purchase, death, respawn, deposit, coordination, alert and result events origina
 
 `resources/content_catalog.tres` lists UnitStats and UpgradeDefinition resources and common army/worker scenes. Keep content ID separate from category and tactical role. For a fourth recruit using an existing role, copy a unit resource, give it a unique ID and translated display name, add it to the catalog, and retain a supported `melee`, `ranged` or `tank` role. Army art, recruitment cards and replay metadata use the role; AI builds its roster from catalog roles. A genuinely new behavior needs code and corresponding coverage.
 
-`default_map.tres` resolves MapDefinition bounds, obstacles, three route geometries, bases, renewable groves and home/neutral pads. Navigation, battlefield and minimap share that definition. `default_rules.tres` resolves starting resources, caps, worker cost, grouping wait, troop speed multiplier and difficulty. GameManager duplicates mutable runtime definitions; fixture edits to external resource entries should explicitly duplicate those entries too.
+`default_map.tres` resolves MapDefinition bounds, obstacles, three route geometries, bases, finite timber groves and home/neutral pads. Navigation, battlefield and minimap share that definition. `default_rules.tres` resolves starting resources, caps, worker cost, grouping wait, troop speed multiplier and difficulty. GameManager duplicates mutable runtime definitions; fixture edits to external resource entries should explicitly duplicate those entries too.
 
-Each definition exposes `validation_errors()`. Match creation rejects missing factories/definitions, duplicate or reserved IDs, unsupported roles, invalid numeric values, missing unit translations, unknown upgrade stat keys, out-of-bounds geometry and incompatible lane/base counts before creating gameplay actors. Scenario numeric/unknown-field validation remains the runner’s separate boundary.
+Catalog, map and match rules expose `validation_errors()`. Match creation rejects missing factories/definitions, duplicate or reserved IDs, unsupported roles, invalid numeric values, missing unit translations, unknown upgrade stat keys, out-of-bounds geometry and incompatible lane/base counts before creating gameplay actors. Scenario numeric/unknown-field validation remains the runner’s separate boundary.
 
 To prototype a map, duplicate the resource and set it on a main-scene instance. Keep this shipped game’s three-lane/two-team semantics, valid paths and reachable spawns. `definition_regression.gd` demonstrates a renamed ranged recruit, changed bounds/route and worker price without editing controllers.
 
@@ -42,8 +42,14 @@ python3 tests/validate_replay.py tests/artifacts/game_lab_report.json
 node tests/check_replay_browser.mjs tests/artifacts/game_lab_report.html
 ```
 
-Replays use version 3 source events, stable IDs, metadata and sampled motion; old replay views remain supported. `--sample-seconds 5 --no-html` keeps large experiments manageable. `--resume` accepts checkpoints only with identical source digest, engine, seeds, limit, sample interval and scenario config. Technical failures fail the runner and never count as balance results.
+Replays use version 4 source events, stable IDs, metadata and sampled motion; version 3 and older replay views remain supported. `--sample-seconds 5 --no-html` keeps large experiments manageable. `--resume` accepts checkpoints only with identical source digest, engine, seeds, limit, sample interval and scenario config. Technical failures fail the runner and never count as balance results.
 
 `--suite tuning --match-jobs 4` runs seeds 42–61 over the eight agreed grouping/speed/tower-health configurations. `select_pacing.py` chooses the fewest changed values meeting the 12–18 minute median and at most two timeouts; otherwise it reports the target unmet and selects the nearest eligible fallback.
 
 Run `python3 tests/compare_performance.py` (headless) and `python3 tests/compare_performance.py --mode rendered --output tests/artifacts/performance_rendered` alone, with no other Godot instances, for three sequential 115-actor capacity runs per revision, including projectiles. It reports median p50/p95/max and flags p95 regression over 10% for investigation. Fixture durability sustains combat; these stress timings are not balance measurements. Generated artifacts stay under ignored `tests/artifacts`.
+
+## Current integration
+
+`main` combines the commander overhaul with finite wood, shared combat abilities, team deployment history, tower definitions and mobile drawers. Tower resources live under `resources/towers/`; the catalog resolves their content IDs. Custom finite grove layouts use `MapDefinition.tree_groves` and scenario `groves` overrides. The fast suite includes combat, economy/towers, deployment policy, HUD and economy pacing fixtures alongside the existing lifecycle, coordination and difficulty checks.
+
+See [branch integration](branch-integration.md) for merge decisions and [rework verification](rework-verification.md) for remaining acceptance work. Historical pacing targets and performance numbers above apply to their earlier snapshots; rerun experiments before judging the combined gameplay.

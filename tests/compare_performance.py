@@ -20,12 +20,17 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--baseline', default='707a51a')
+    parser.add_argument('--baseline', default='7179af9')
+    parser.add_argument('--baseline-dir', type=Path, help='Use a preserved baseline project instead of git archive')
     parser.add_argument('--godot', default=shutil.which('godot'))
     parser.add_argument('--output', type=Path, default=ROOT / 'tests/artifacts/performance_overhaul')
     parser.add_argument('--wait-for-idle', action='store_true', help='Wait for other Godot instances to exit before measuring')
     parser.add_argument('--mode', choices=('headless', 'rendered'), default='headless')
     args = parser.parse_args()
+    if not args.godot:
+        parser.error('Godot unavailable; supply --godot')
+    if args.baseline_dir and not (args.baseline_dir / 'project.godot').is_file():
+        parser.error('--baseline-dir must contain project.godot')
     args.output.mkdir(parents=True, exist_ok=True)
     def godot_running():
         for path in Path('/proc').iterdir():
@@ -54,17 +59,25 @@ def main():
         with tempfile.TemporaryDirectory(prefix='crownfront-performance-') as temporary:
             stage = Path(temporary) / 'project'
             if version == 'baseline':
-                stage.mkdir()
-                archive = subprocess.check_output(['git', 'archive', args.baseline], cwd=ROOT)
-                with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
-                    bundle.extractall(stage, filter='data')
+                if args.baseline_dir:
+                    shutil.copytree(args.baseline_dir, stage, ignore=shutil.ignore_patterns('.git', '.godot', '.aws', '.codex', 'artifacts', 'builds', '__pycache__'))
+                else:
+                    stage.mkdir()
+                    archive = subprocess.check_output(['git', 'archive', args.baseline], cwd=ROOT)
+                    with tarfile.open(fileobj=io.BytesIO(archive)) as bundle:
+                        if hasattr(tarfile, 'data_filter'):
+                            bundle.extractall(stage, filter='data')
+                        else:
+                            # Git archive of a local revision contains repository paths.
+                            bundle.extractall(stage)
                 fixture = stage / 'tests/performance_probe.gd'
                 source = fixture.read_text()
-                source = source.replace('\t\tvar after_units := Time.get_ticks_usec()',
-                    '\t\tfor projectile in get_nodes_in_group("projectiles"):\n'
-                    '\t\t\tif not projectile.is_queued_for_deletion():\n'
-                    '\t\t\t\tprojectile._physics_process(STEP)\n'
-                    '\t\tvar after_units := Time.get_ticks_usec()')
+                if 'game.session.step()' not in source:
+                    source = source.replace('\t\tvar after_units := Time.get_ticks_usec()',
+                        '\t\tfor projectile in get_nodes_in_group("projectiles"):\n'
+                        '\t\t\tif not projectile.is_queued_for_deletion():\n'
+                        '\t\t\t\tprojectile._physics_process(STEP)\n'
+                        '\t\tvar after_units := Time.get_ticks_usec()')
                 source = source.replace('"p95": values[', '"p50": values[int(values.size() * 0.5)], "p95": values[')
                 source = source.replace('\troot.add_child(game)\n\tcurrent_scene = game',
                     '\tvar capture_viewport: Viewport = root\n'
@@ -111,7 +124,8 @@ def main():
         current = median(r['metrics'][measurement][metric] for r in reports if r['label'].startswith('current'))
         summary[metric] = dict(baseline_ms=baseline, current_ms=current, change_percent=(current / baseline - 1) * 100)
     payload = dict(hardware=platform.uname()._asdict(), baseline=args.baseline, mode=args.mode, runs=reports, summary=summary,
-                   baseline_correction='Added missing projectile physics update, p50 reporting, exact-size render surface and deterministic idle human input; production baseline code unchanged.',
+                   baseline_directory=str(args.baseline_dir.resolve()) if args.baseline_dir else None,
+                   baseline_correction='Baseline fixture adapted for p50, exact-size rendering and idle input; projectile phase added only to pre-session baselines.',
                    needs_investigation=summary['p95']['change_percent'] > 10)
     (args.output / 'comparison.json').write_text(json.dumps(payload, indent=2) + '\n')
     print(json.dumps(summary, indent=2))

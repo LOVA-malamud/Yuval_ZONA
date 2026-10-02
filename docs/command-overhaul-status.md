@@ -1,5 +1,7 @@
 # Command and coordination overhaul
 
+Historical evidence for the local commander-overhaul snapshot through `8c28682`. This code is now integrated into `main` with a newer gameplay rework; these results do not verify the combined source. See [integration record](branch-integration.md) and [current rework acceptance](rework-verification.md).
+
 Branch: `feat/command-and-coordination-overhaul`.
 
 This branch adds persistent ally orders, local Rally and Regroup commands,
@@ -21,7 +23,7 @@ python3 tests/verify.py --suite fast
 
 The corrected final source passes the 18-check fast gate, all 82 desktop checks (the complete bilingual five-size matrix, cutouts, native controls and a death/projectile trace at 30/60 FPS), and 47 native feature/input checks including fullscreen restoration. Detailed evidence and remaining measurements are in [overhaul-verification.md](overhaul-verification.md).
 
-The complete 160-match pacing sweep and final three-match comparison are running. Earlier pacing data is superseded by a correction to AI counting of queued dead troops. Three baseline/current capacity comparisons in each mode are complete; p95 regressed 17.1% for headless CPU and 10.4% for rendered frame time. Registry caching and avoiding hidden UI refreshes reduce the cost, but a regression remains. Physical phone/tablet testing has not been performed.
+The old pacing sweep is not established as complete. The local three-match full suite at `8c28682` passed all 20 checks; it does not verify the newer rework. Earlier pacing data is superseded by a correction to AI counting of queued dead troops. Three baseline/current capacity comparisons in each mode are complete; p95 regressed 17.1% for headless CPU and 10.4% for rendered frame time. Registry caching and avoiding hidden UI refreshes reduce the cost, but a regression remains. Physical phone/tablet testing has not been performed.
 
 Final verification entry points:
 

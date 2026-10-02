@@ -15,6 +15,8 @@ var MAP_SIZE := Vector2(4600, 2600)
 @export var map_definition: MapDefinition = preload("res://resources/default_map.tres")
 @export var rules: MatchRules = preload("res://resources/default_rules.tres")
 var unit_data: Dictionary = {}
+var tower_data: Dictionary = {}
+var deployment_policy = preload("res://scripts/ai/deployment_policy.gd").new()
 var upgrades: Array[UpgradeDefinition] = []
 @export var strategy_seed: int = 42
 var teams: Array[GameTeam] = []
@@ -63,12 +65,30 @@ func _team_config(id: int) -> Dictionary:
 
 func _apply_simulation_config() -> void:
 	unit_data = catalog.unit_definitions()
+	tower_data = catalog.tower_definitions()
+	for id in tower_data:
+		tower_data[id] = tower_data[id].duplicate(true)
+		if id == &"guard":
+			var legacy := {"tower_money": "money_cost", "tower_wood": "wood_cost", "tower_health": "max_health", "tower_damage": "damage", "tower_range": "attack_range", "tower_cooldown": "attack_cooldown"}
+			for field in legacy:
+				if simulation_config.get("shared", {}).get("balance", {}).has(field):
+					tower_data[id].set(legacy[field], simulation_config["shared"]["balance"][field])
+		for field in simulation_config.get("shared", {}).get("towers", {}).get(String(id), {}):
+			tower_data[id].set(field, simulation_config["shared"]["towers"][String(id)][field])
+	for field in simulation_config.get("shared", {}).get("deployment", {}):
+		deployment_policy.set(field, simulation_config["shared"]["deployment"][field])
 	upgrades = catalog.upgrades
 	rules = rules.duplicate(true)
 	rules.difficulty = StringName(simulation_config.get("shared", {}).get("difficulty", GameSettings.difficulty))
 	for field in simulation_config.get("shared", {}).get("rules", {}):
 		rules.set(field, simulation_config["shared"]["rules"][field])
 	map_definition = map_definition.duplicate(true)
+	if simulation_config.get("shared", {}).has("groves"):
+		map_definition.tree_groves.clear()
+	for grove in simulation_config.get("shared", {}).get("groves", []):
+		var entry: Dictionary = grove.duplicate(true)
+		entry["center"] = Vector2(grove.center[0], grove.center[1])
+		map_definition.tree_groves.append(entry)
 	MAP_SIZE = map_definition.bounds
 	navigation = RouteMap.new(map_definition)
 	# The scene stores preloaded resources; each match owns its mutable copies.
@@ -202,15 +222,14 @@ func _create_king(team: GameTeam) -> void:
 
 
 func _create_trees() -> void:
-	for mirrored in [false, true]:
-		for grove in map_definition.groves:
-			for index in range(4):
-				var tree = TREE_SCENE.instantiate()
-				var point: Vector2 = grove + Vector2(index % 2 * 90, index / 2 * 90)
-				tree.position = Vector2(MAP_SIZE.x - point.x if mirrored else point.x, point.y)
-				tree.renewable = grove.x > 1000
-				tree.wood_remaining = 140
-				$Trees.add_child(tree)
+	for entry in map_definition.tree_placements():
+		var tree = TREE_SCENE.instantiate()
+		tree.position = entry.position
+		tree.renewable = false
+		tree.wood_remaining = entry.wood
+		tree.game = self
+		tree.zone = entry.zone
+		$Trees.add_child(tree)
 
 
 func team_by_id(id: int) -> GameTeam:
@@ -288,8 +307,8 @@ func purchase_upgrade(team_id: int, id: StringName, feedback: bool = true) -> bo
 		notify("INSUFFICIENT_WOOD")
 	return result.success
 
-func build_tower(commander, pad) -> bool:
-	return session.execute(MatchCommand.new(MatchCommand.Action.BUILD, commander.commander_id, {"pad": pad})).success
+func build_tower(commander, pad, tower_id: StringName = &"guard") -> bool:
+	return session.execute(MatchCommand.new(MatchCommand.Action.BUILD, commander.commander_id, {"pad": pad, "tower_id": tower_id})).success
 
 func upgrade_tower(commander, pad) -> bool:
 	return session.execute(MatchCommand.new(MatchCommand.Action.UPGRADE_TOWER, commander.commander_id, {"pad": pad})).success
@@ -334,6 +353,7 @@ func _purchase(team_id: int, id: StringName, feedback: bool = true, route_id: in
 		recruit.route_id = route_id
 		recruit.route = navigation.army_route(route_id, team.base_position.x > MAP_SIZE.x * 0.5)
 		team.combat_count += 1
+		deployment_policy.record_deployment(team.team_id, route_id)
 	recruit.died.connect(_on_recruit_died)
 	entities.add_child(recruit)
 	if feedback:
@@ -447,14 +467,18 @@ func nearest_pad(commander):
 func pad_access(commander, pad) -> bool:
 	return not match_finished and not get_tree().paused and is_instance_valid(commander) and commanders.has(commander) and commander.alive and is_instance_valid(pad) and pads.has(pad) and commander.global_position.distance_to(pad.global_position) <= balance.build_reach and navigation.clear_line(commander.global_position, pad.global_position)
 
-func _build_tower(commander, pad) -> bool:
+func _build_tower(commander, pad, tower_id: StringName = &"guard") -> bool:
 	if not pad_access(commander, pad) or pad.occupied() or pad.rebuild_remaining > 0:
 		return false
 	if pad.home_team_id != 0 and pad.home_team_id != commander.team.team_id:
 		return false
-	if not commander.team.spend(balance.tower_money, balance.tower_wood):
+	if not tower_data.has(tower_id):
+		return false
+	var definition: TowerDefinition = tower_data[tower_id]
+	if not commander.team.spend(definition.money_cost, definition.wood_cost):
 		return false
 	var tower = TOWER_SCRIPT.new()
+	tower.definition = definition
 	tower.configure(commander.team, self)
 	tower.position = pad.position
 	tower.pad = pad

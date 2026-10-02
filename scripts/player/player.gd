@@ -14,6 +14,111 @@ var heal_cooldown: float = 0.0
 var tactical_status: String = "STATUS_READY"
 var strike_target: CombatEntity
 var strike_remaining: float = 0.0
+var healing: bool = false
+var action_state: StringName = &"ready"
+var action_remaining: float = 0.0
+var facing := Vector2.RIGHT
+var ability_cooldowns: Dictionary = {&"dash": 0.0, &"guard": 0.0, &"heavy": 0.0}
+
+func _tuning(key: String, fallback: float) -> float:
+	for property in game.balance.get_property_list():
+		if property.name == key:
+			return float(game.balance.get(key))
+	return fallback
+
+func cancel_action() -> void:
+	healing = false
+	action_state = &"ready"
+	action_remaining = 0.0
+	strike_target = null
+	strike_remaining = 0.0
+
+func activate_ability(ability_id: StringName, direction: Vector2) -> bool:
+	if ability_id == &"heavy_strike":
+		ability_id = &"heavy"
+	if not alive or stun_remaining > 0.0 or action_state != &"ready" or strike_remaining > 0.0 or not ability_cooldowns.has(ability_id) or ability_cooldowns[ability_id] > 0.0:
+		return false
+	_interrupt_healing(&"ability")
+	if direction.is_finite() and direction.length_squared() > 0.001:
+		facing = direction.normalized()
+	action_state = ability_id
+	match ability_id:
+		&"dash":
+			action_remaining = _tuning("dash_duration", 0.15)
+			ability_cooldowns[ability_id] = _tuning("dash_cooldown", 5.0)
+		&"guard":
+			action_remaining = _tuning("guard_duration", 0.6)
+			ability_cooldowns[ability_id] = _tuning("guard_cooldown", 5.0)
+		&"heavy":
+			action_remaining = _tuning("heavy_windup", 0.6)
+			ability_cooldowns[ability_id] = _tuning("heavy_cooldown", 7.0)
+	game.session.publish({"type": "ability", "entity_id": match_id, "commander_id": commander_id, "ability_id": String(ability_id), "direction": [facing.x, facing.y]})
+	return true
+
+func _interrupt_healing(reason: StringName) -> void:
+	if not healing:
+		return
+	healing = false
+	game.session.publish({"type": "healing_interrupt", "entity_id": match_id, "reason": String(reason)})
+
+func _resolve_heavy() -> void:
+	var victim: CombatEntity = null
+	var nearest: float = INF
+	for candidate in game.session.actors.values():
+		if not valid_enemy(candidate) or edge_distance(candidate) > attack_range or not game.navigation.clear_line(global_position, candidate.global_position):
+			continue
+		var heading: Vector2 = global_position.direction_to(candidate.global_position)
+		if absf(facing.angle_to(heading)) > deg_to_rad(_tuning("heavy_cone_degrees", 50.0) * 0.5):
+			continue
+		var distance: float = global_position.distance_squared_to(candidate.global_position)
+		if distance < nearest:
+			nearest = distance
+			victim = candidate
+	if victim != null:
+		var guarded: bool = victim.has_method("guards_from") and victim.guards_from(global_position)
+		victim.take_damage(_tuning("heavy_damage", 48.0), team.team_id, commander_id, global_position)
+		if is_instance_valid(victim) and victim.alive and not guarded:
+			victim.apply_stun(_tuning("heavy_stun", 0.5))
+		game.session.publish({"type": "heavy_hit", "entity_id": match_id, "target_id": victim.match_id, "guarded": guarded})
+
+func guards_from(source_position: Vector2) -> bool:
+	return action_state == &"guard" and source_position.is_finite() and absf(facing.angle_to(global_position.direction_to(source_position))) <= deg_to_rad(_tuning("guard_cone_degrees", 120.0) * 0.5)
+
+func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0, source_position: Vector2 = Vector2(INF, INF)) -> void:
+	if alive and team.is_enemy(attacker_team_id) and amount > 0.0:
+		_interrupt_healing(&"damage")
+		if guards_from(source_position):
+			amount *= 1.0 - _tuning("guard_damage_reduction", 0.7)
+	super.take_damage(amount, attacker_team_id, source_commander_id, source_position)
+
+func _step_action(delta: float) -> void:
+	if stun_remaining > 0.0:
+		cancel_action()
+		return
+	if healing:
+		if global_position.distance_to(team.base_position) > _tuning("base_heal_radius", 180.0):
+			_interrupt_healing(&"range")
+		else:
+			health = minf(max_health, health + _tuning("base_heal_rate", 30.0) * delta)
+			if health >= max_health:
+				healing = false
+				game.session.publish({"type": "healing_complete", "entity_id": match_id})
+	if action_state == &"ready":
+		return
+	var elapsed: float = minf(delta, action_remaining)
+	if action_state == &"dash":
+		global_position = game.navigation.move(global_position, facing * _tuning("dash_distance", 150.0) / _tuning("dash_duration", 0.15) * elapsed, body_radius)
+	action_remaining = maxf(0.0, action_remaining - delta)
+	if action_remaining <= 0.0:
+		if action_state == &"recovery":
+			action_state = &"ready"
+		else:
+			var was_heavy: bool = action_state == &"heavy"
+			if was_heavy:
+				_resolve_heavy()
+			action_state = &"recovery"
+			action_remaining = _tuning("heavy_recovery", 0.45) if was_heavy else _tuning("ability_recovery", 0.2)
+
 
 func _ready() -> void:
 	category = &"commander"
@@ -38,10 +143,17 @@ func _ready() -> void:
 	$Camera2D.zoom = Vector2.ONE * 0.9
 
 func step_gameplay(delta: float) -> void:
+	for ability_id in ability_cooldowns:
+		ability_cooldowns[ability_id] = maxf(0.0, float(ability_cooldowns[ability_id]) - delta)
 	rally_cooldown = maxf(0.0, rally_cooldown - delta)
 	if not alive:
 		respawn_remaining -= delta
 		if respawn_remaining <= 0.0:
+			cancel_action()
+			stun_remaining = 0.0
+			stun_immunity = 0.0
+			for ability_id in ability_cooldowns:
+				ability_cooldowns[ability_id] = 0.0
 			alive = true
 			health = max_health
 			cooldown = 0.0
@@ -62,6 +174,7 @@ func step_gameplay(delta: float) -> void:
 				$Camera2D.reset_smoothing()
 		return
 	tick(delta)
+	_step_action(delta)
 	if strike_remaining > 0.0:
 		strike_remaining -= delta
 		if strike_remaining <= 0.0:
@@ -71,10 +184,11 @@ func step_gameplay(delta: float) -> void:
 		controller.drive(self, delta)
 
 func attack(target: CombatEntity) -> void:
-	if not alive or cooldown > 0.0 or strike_remaining > 0.0 or not valid_enemy(target):
+	if not alive or stun_remaining > 0.0 or action_state != &"ready" or cooldown > 0.0 or strike_remaining > 0.0 or not valid_enemy(target):
 		return
 	if edge_distance(target) > attack_range or not game.navigation.clear_line(global_position, target.global_position):
 		return
+	_interrupt_healing(&"attack")
 	strike_target = target
 	strike_remaining = game.balance.commander_strike_windup
 	queue_redraw()
@@ -90,6 +204,11 @@ func _resolve_strike() -> void:
 
 func _draw() -> void:
 	super._draw()
+	if action_state in [&"heavy", &"guard"]:
+		var half_angle: float = deg_to_rad(25.0 if action_state == &"heavy" else 60.0)
+		draw_arc(Vector2.ZERO, attack_range + body_radius, facing.angle() - half_angle, facing.angle() + half_angle, 20, Color("ffae55") if action_state == &"heavy" else Color("90dfff"), 4.0, true)
+	if healing:
+		draw_arc(Vector2.ZERO, body_radius + 12.0, -PI / 2.0, -PI / 2.0 + TAU * health / max_health, 24, Color("99efb0"), 3.0, true)
 	if human_controlled and controller != null and valid_enemy(controller.target):
 		var selected: CombatEntity = controller.target
 		draw_arc(to_local(selected.global_position), selected.body_radius + 9.0, 0.0, TAU, 24, Color("f6e4a6", 0.75), 2.0, true)
@@ -103,13 +222,28 @@ func _draw() -> void:
 
 func apply_input(values: Dictionary) -> void:
 	var direction: Vector2 = values.get("direction", Vector2.ZERO)
+	var moving: bool = direction.length_squared() > 0.001 or (values.has("goal") and global_position.distance_to(values.goal) > 4.0)
+	if moving:
+		_interrupt_healing(&"movement")
+	if bool(values.get("attack", false)):
+		_interrupt_healing(&"attack")
+	if stun_remaining > 0.0 or action_state == &"dash" or healing:
+		return
+	if direction.length_squared() > 0.001 and action_state == &"ready":
+		facing = direction.normalized()
+	var original_speed: float = move_speed
+	if action_state == &"guard":
+		move_speed *= _tuning("guard_move_multiplier", 0.35)
+	elif action_state == &"heavy":
+		move_speed *= _tuning("heavy_move_multiplier", 0.25)
 	if values.has("goal"):
 		var normal_speed := move_speed
 		move_speed = minf(move_speed, float(values.get("speed_limit", move_speed)))
 		travel_toward(values.goal, float(values.get("delta", MatchSession.STEP)))
 		move_speed = normal_speed
 	else:
-		global_position = game.navigation.move(global_position, direction.limit_length(1.0) * move_speed * float(values.get("delta", MatchSession.STEP)), body_radius)
+		global_position = game.navigation.move(global_position, direction.limit_length(1.0) * effective_move_speed() * float(values.get("delta", MatchSession.STEP)), body_radius)
+	move_speed = original_speed
 	if bool(values.get("attack", false)):
 		var selected = values.get("target")
 		if not valid_enemy(selected) or edge_distance(selected) > attack_range:
@@ -128,10 +262,11 @@ func interact() -> void:
 	if human_controlled and game.hud != null and game.nearest_pad(self) != null:
 		game.hud.focus_build_pad()
 		return
-	if global_position.distance_to(team.base_position) <= 180.0:
+	if global_position.distance_to(team.base_position) <= _tuning("base_heal_radius", 180.0):
 		base_interacted.emit()
-		if heal_cooldown <= 0.0:
-			health = max_health
+		if heal_cooldown <= 0.0 and health < max_health and action_state == &"ready" and stun_remaining <= 0.0:
+			healing = true
+			game.session.publish({"type": "healing_start", "entity_id": match_id})
 			heal_cooldown = game.balance.base_heal_cooldown
 			if human_controlled:
 				game.notify("HEALED")
@@ -139,6 +274,7 @@ func interact() -> void:
 		game.notify("APPROACH_KING")
 
 func die() -> void:
+	cancel_action()
 	game.spawn_effect(global_position, team.color, "death")
 	alive = false
 	game.session.publish({"type": "death", "team": team.team_id, "kind": String(kind), "entity_id": match_id, "position": [position.x, position.y], "commander_id": commander_id})

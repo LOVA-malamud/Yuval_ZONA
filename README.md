@@ -6,9 +6,10 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 
 - Four independent commanders: human + ally AI versus two enemy AIs
 - Three lanes with terrain-aware A* navigation
-- Shared Gold and Wood economy, workers, gathering, and commander respawns
+- Shared Gold and finite Wood economy, exposed late-game gathering, and commander respawns
+- Gradual, interruptible base recovery and shared dash, guard, and heavy-strike abilities
 - Melee, ranged, and tank roles with distinct battlefield behavior
-- Nine build pads and three-level Guard Towers
+- Nine build pads with three-level Guard, Splash, and Long-range Towers
 - King and Economy upgrade tracks
 - Persistent ally orders, visible spending/plans, local Rally and Regroup commands
 - Focus targeting, battle alerts, strategic minimap and responsive HUD
@@ -22,6 +23,7 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | --- | --- |
 | `WASD` | Move the human commander |
 | Hold `Space` | Attack a nearby enemy |
+| `Shift` / `F` / `C` | Dash / guard / heavy strike, aimed toward the mouse |
 | `E` near a King or build pad | Open the relevant interaction |
 | Mouse wheel | Zoom the battlefield camera |
 | `1` / `2` / `3` or route selector | North / Center / South for new recruits |
@@ -32,7 +34,9 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | Army / King / Economy tabs | Recruit units and buy shared upgrades |
 | `Escape` | Pause, close the active panel, or resume |
 
-On a touchscreen, drag from the left side to move. The commander attacks nearby enemies while a movement touch is held. Tap a visible enemy to focus attacks. Use the on-screen Rally, Regroup, Orders and Interact buttons. Interact works near your King or a build pad. Commander strikes have a brief wind-up, and ranged shots travel toward the position aimed at when fired, so movement can avoid both. These touch controls are an initial mobile input pass; device layout and thumb comfort still need testing on phones.
+On a touchscreen, drag from the left side to move. Mobile auto-attack works independently of movement. Drag an ability button to aim and release to activate; drag back into the button to cancel. A quick tap follows your movement facing or a nearby target when stationary. Use Interact near your King to channel recovery or near a build pad to select a tower. Army, King, and Economy controls open in collapsible drawers. Landscape safe areas and a portrait rotate prompt are supported; thumb reach and dense-combat readability still require phone playtests.
+
+Heavy strike commits your facing through a visible 0.6-second wind-up. It deals 48 damage and briefly stuns commanders and troops when their guard fails. Front-facing guard and lateral dash provide counterplay; missing leaves you vulnerable during recovery.
 
 ## Text-only game lab
 
@@ -93,7 +97,7 @@ The packaging script stages production files only, adds Godot and project-asset 
 
 ## Project status
 
-The command-and-coordination overhaul is developed on `feat/command-and-coordination-overhaul`. It retains the two-team King objective, four commanders, three lanes, three troop roles, shared economy and procedural art.
+The integrated `main` includes the command-and-coordination overhaul and the eight-issue gameplay rework: finite wood, gradual base healing, balanced AI deployment, commander abilities, tactical combat, tower choices, and a landscape mobile HUD. Automated checks and simulation evidence are documented in [the rework verification report](docs/rework-verification.md). Human combat and Android device acceptance remain pending; the issues should remain open until their acceptance checks are satisfied.
 
 Run isolated verification without modifying your preferences:
 
@@ -103,4 +107,4 @@ python3 tests/verify.py --suite desktop
 python3 tests/verify.py --suite full
 ```
 
-CI runs the fast suite with Godot 4.7.2. Desktop checks require a display; full matches are headless. The [contributor guide](docs/contributor-guide.md) explains the session, commands, resources and scenario lab. Overhaul evidence and remaining acceptance work are tracked in [overhaul verification](docs/overhaul-verification.md). The earlier [polish verification](docs/verification.md) and its platform reports remain historical evidence.
+CI runs the fast suite with Godot 4.7.2. Desktop checks require a display; full matches are headless. The [contributor guide](docs/contributor-guide.md) explains the session, commands, resources and scenario lab. See the [documentation index](docs/README.md), [branch integration record](docs/branch-integration.md), and [current rework verification](docs/rework-verification.md). Overhaul verification is historical evidence for the earlier snapshot. The earlier [polish verification](docs/verification.md) and its platform reports remain historical evidence.

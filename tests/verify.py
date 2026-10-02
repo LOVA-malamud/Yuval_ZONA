@@ -21,6 +21,8 @@ REGRESSIONS = (
     "runtime_smoke", "tactical_regression", "route_travel", "navigation_parity",
     "localization_regression", "settings_audio_regression", "onboarding_regression",
     "polish_regression", "game_lab", "step_parity", "definition_regression", "difficulty_regression",
+    "combat_rework_regression", "economy_towers_regression", "deployment_policy_regression",
+    "hud_rework_regression", "economy_pacing_lab",
 )
 
 

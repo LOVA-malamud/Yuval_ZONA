@@ -31,7 +31,7 @@ func _run() -> void:
 	check(game.commanders.size() == 4, "Four independent commanders exist")
 	check(game.commanders[0].team == game.commanders[1].team and game.commanders[2].team == game.commanders[3].team, "Commanders share the correct teams")
 	check(azure.worker_count == 3 and ember.worker_count == 3, "Both teams start with workers")
-	check(get_nodes_in_group("trees").size() == 32, "Symmetrical tree groves exist")
+	check(get_nodes_in_group("trees").size() == 56, "Symmetrical tree groves exist")
 	check(game.hud.controls.size.x >= 1280.0, "HUD root fills viewport")
 	var money_before: int = azure.money
 	game.get_node("EconomyManager").step_gameplay(1.0)

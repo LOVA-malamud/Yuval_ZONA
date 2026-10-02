@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="TowerDefinition" load_steps=2 format=3]
+[ext_resource type="Script" path="res://scripts/core/tower_definition.gd" id="1"]
+[resource]
+script = ExtResource("1")
+id = &"splash"
+display_name = &"TOWER_SPLASH"
+money_cost = 180
+wood_cost = 80
+max_health = 420.0
+damage = 12.0
+attack_cooldown = 1.6
+attack_range = 220.0
+splash_radius = 65.0

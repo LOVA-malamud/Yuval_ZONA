@@ -10,6 +10,8 @@ var game = null
 var match_id: int = 0
 var owner_commander_id: int = 0
 var rally_buff: float = 0.0
+var stun_remaining: float = 0.0
+var stun_immunity: float = 0.0
 var max_health: float = 100.0
 var health: float = 100.0
 var damage: float = 10.0
@@ -60,6 +62,12 @@ func configure(owner_team: GameTeam, manager, data: UnitStats = null) -> void:
 
 
 func tick(delta: float) -> void:
+	if stun_remaining > 0.0:
+		stun_remaining = maxf(0.0, stun_remaining - delta)
+		if stun_remaining <= 0.0:
+			stun_immunity = 1.5
+	else:
+		stun_immunity = maxf(0.0, stun_immunity - delta)
 	var fading_feedback: bool = hit_flash > 0.0 or shot_time > 0.0 or (rally_buff > 0.0 and rally_buff <= delta)
 	visual_time += delta
 	rally_buff = maxf(0.0, rally_buff - delta)
@@ -118,7 +126,7 @@ func edge_distance(other: CombatEntity) -> float:
 
 
 func attack(target: CombatEntity) -> void:
-	if not alive or cooldown > 0.0 or not valid_enemy(target):
+	if not alive or stun_remaining > 0.0 or cooldown > 0.0 or not valid_enemy(target):
 		return
 	if edge_distance(target) > attack_range or not game.navigation.clear_line(global_position, target.global_position):
 		return
@@ -139,10 +147,10 @@ func attack(target: CombatEntity) -> void:
 		game.launch_projectile(team.team_id, global_position, target.global_position, damage, structure_damage_multiplier, owner_commander_id)
 	else:
 		var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
-		target.take_damage(dealt, team.team_id, owner_commander_id)
+		target.take_damage(dealt, team.team_id, owner_commander_id, global_position)
 
 
-func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0) -> void:
+func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0, _source_position: Vector2 = Vector2.INF) -> void:
 	if not alive or not team.is_enemy(attacker_team_id) or amount <= 0.0:
 		return
 	if kind == &"king" and game.coordination != null:
@@ -152,6 +160,17 @@ func take_damage(amount: float, attacker_team_id: int, source_commander_id: int 
 	if health <= 0.0:
 		die()
 	queue_redraw()
+
+
+func apply_stun(duration: float) -> bool:
+	if not alive or category not in [&"commander", &"army"] or stun_remaining > 0.0 or stun_immunity > 0.0 or duration <= 0.0:
+		return false
+	stun_remaining = duration
+	if has_method("cancel_action"):
+		call("cancel_action")
+	game.session.publish({"type": "stun", "entity_id": match_id, "duration": duration, "team": team.team_id})
+	queue_redraw()
+	return true
 
 
 func die() -> void:
@@ -166,6 +185,8 @@ func die() -> void:
 
 
 func travel_toward(destination: Vector2, delta: float) -> void:
+	if stun_remaining > 0.0:
+		return
 	# A cached path may be stale after a respawn or a moving target changes direction.
 	var endpoint_reached: bool = travel_path.size() == 1 and global_position.distance_to(travel_path[0]) < 24.0
 	var segment_blocked: bool = not travel_path.is_empty() and not game.navigation.clear_line(global_position, travel_path[0], body_radius + 1.0)
@@ -196,6 +217,8 @@ func travel_toward(destination: Vector2, delta: float) -> void:
 func _draw() -> void:
 	if team == null or not alive:
 		return
+	if stun_remaining > 0.0:
+		draw_arc(Vector2(0, -body_radius - 12), 8, 0, TAU, 12, Color("ffe399"), 2)
 	if rally_buff > 0.0:
 		draw_arc(Vector2.ZERO, body_radius + 7.0, 0.0, TAU, 24, Color("edce8e"), 2.0, true)
 	var tint: Color = team.color.lerp(Color.WHITE, hit_flash / 0.16 * 0.7)

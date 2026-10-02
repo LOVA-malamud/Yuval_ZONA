@@ -16,7 +16,7 @@ func _draw() -> void:
 		return
 	var center := Vector2(116.0, size.y * 0.57)
 	if controller.touch_index >= 0:
-		center = controller.touch_origin
+		center = controller.touch_origin - global_position
 	draw_circle(center, 74.0, Color(0.06, 0.13, 0.17, 0.34))
 	draw_arc(center, 72.0, 0.0, TAU, 48, Color(0.89, 0.91, 0.79, 0.57), 3.0, true)
 	draw_circle(center + controller.touch_direction * 52.0, 27.0, Color(0.85, 0.89, 0.78, 0.70))
