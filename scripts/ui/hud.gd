@@ -49,12 +49,23 @@ var regroup_button: Button
 var difficulty_selector: OptionButton
 var touch_stick: Control
 var purchase_feedback: Dictionary = {}
+var shop_dock: PanelContainer
+var minimap_column: VBoxContainer
+var drawer_button: Button
+var ability_buttons: Dictionary = {}
+var healing_label: Label
+var tower_buttons: Dictionary = {}
+var portrait_notice: Label
+var portrait_paused: bool = false
+var compact_mode: bool = false
+var shop_pages: Array[Container] = []
 const ROLE_KEYS := {&"worker": "ROLE_WORKER", &"melee": "ROLE_MELEE", &"ranged": "ROLE_RANGED", &"tank": "ROLE_TANK"}
 
 
 func setup(manager, owner_team: GameTeam) -> void:
 	game = manager
 	team = owner_team
+	compact_mode = DisplayServer.is_touchscreen_available() or game.force_touch_controls
 	_build_interface()
 	Localization.language_changed.connect(_language_changed)
 	_language_changed()
@@ -174,6 +185,7 @@ func _build_interface() -> void:
 	status_panel.add_child(status_label)
 
 	var dock := PanelContainer.new()
+	shop_dock = dock
 	dock.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	controls.add_child(dock)
 	dock.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
@@ -187,7 +199,9 @@ func _build_interface() -> void:
 	var shop := VBoxContainer.new()
 	shop.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(shop)
-	var orders := HBoxContainer.new()
+	var orders: Container = GridContainer.new() if compact_mode else HBoxContainer.new()
+	if orders is GridContainer:
+		orders.columns = 2
 	shop.add_child(orders)
 	var heading := _label("REINFORCEMENTS", 13)
 	heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -217,10 +231,22 @@ func _build_interface() -> void:
 	tabs.get_tab_bar().focus_mode = Control.FOCUS_NONE
 	shop.add_child(tabs)
 	for title in ["Army", "King", "Economy"]:
-		var page := HBoxContainer.new()
+		var page: Container = GridContainer.new() if compact_mode else HBoxContainer.new()
+		if page is GridContainer:
+			page.columns = 2
 		page.name = title
 		page.add_theme_constant_override("separation", 8)
-		tabs.add_child(page)
+		shop_pages.append(page)
+		if compact_mode:
+			var scroll := ScrollContainer.new()
+			scroll.name = title
+			scroll.custom_minimum_size.y = 180
+			scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+			tabs.add_child(scroll)
+			page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			scroll.add_child(page)
+		else:
+			tabs.add_child(page)
 	var recruit_ids: Array[StringName] = [&"worker"]
 	for id in game.unit_data:
 		recruit_ids.append(id)
@@ -229,7 +255,7 @@ func _build_interface() -> void:
 		button.custom_minimum_size = Vector2(160, 78)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.alignment = HORIZONTAL_ALIGNMENT_RIGHT
-		tabs.get_child(0).add_child(button)
+		shop_pages[0].add_child(button)
 		var icon = preload("res://scripts/ui/unit_icon.gd").new()
 		icon.kind = &"worker" if id == &"worker" else game.unit_data[id].tactical_role
 		icon.position = Vector2(4, 6)
@@ -238,7 +264,7 @@ func _build_interface() -> void:
 		button.add_child(icon)
 		army_buttons[id] = button
 	for definition in game.upgrades:
-		var page = tabs.get_child(1 if definition.category == "king" else 2)
+		var page = shop_pages[1 if definition.category == "king" else 2]
 		var button: Button = _button("", _upgrade.bind(definition.id))
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.custom_minimum_size = Vector2(155, 78)
@@ -246,6 +272,7 @@ func _build_interface() -> void:
 		page.add_child(button)
 		upgrade_buttons[definition.id] = button
 	var map_column := VBoxContainer.new()
+	minimap_column = map_column
 	row.add_child(map_column)
 	map_column.add_child(_label("MINIMAP_LEGEND", 12))
 	var overview = MINIMAP_SCRIPT.new()
@@ -270,21 +297,106 @@ func _build_interface() -> void:
 	_build_overlay()
 
 func _build_mobile_controls() -> void:
-	if not DisplayServer.is_touchscreen_available() and not game.force_touch_controls:
+	compact_mode = DisplayServer.is_touchscreen_available() or game.force_touch_controls
+	game.player.controller.mobile_auto_attack = compact_mode
+	healing_label = _label("", 14)
+	controls.add_child(healing_label)
+	healing_label.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	healing_label.position = Vector2(24, 202)
+	healing_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var actions := HBoxContainer.new()
+	controls.add_child(actions)
+	actions.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	actions.offset_left = -282
+	actions.offset_right = -18
+	actions.offset_top = -100
+	actions.offset_bottom = -20
+	for id in [&"dash", &"guard", &"heavy"]:
+		var button = preload("res://scripts/ui/ability_touch_button.gd").new()
+		button.ability_id = id
+		button.controller = game.player.controller
+		button.add_theme_font_size_override("font_size", 14)
+		actions.add_child(button)
+		ability_buttons[id] = button
+	if not compact_mode:
 		return
 	touch_stick = TOUCH_STICK_SCRIPT.new()
 	touch_stick.controller = game.player.controller
 	controls.add_child(touch_stick)
+	controls.move_child(touch_stick, 0)
 	mobile_interact_button = _button("MOBILE_INTERACT", func():
-		if game.player.alive and not get_tree().paused and not game.match_finished:
-			game.player.interact()
+		game.session.submit(MatchCommand.new(MatchCommand.Action.INPUT, game.player.commander_id, {"interact": true}))
 	)
 	controls.add_child(mobile_interact_button)
-	mobile_interact_button.set_anchors_and_offsets_preset(Control.PRESET_CENTER_RIGHT)
-	mobile_interact_button.offset_left = -154
-	mobile_interact_button.offset_right = -22
-	mobile_interact_button.offset_top = -33
-	mobile_interact_button.offset_bottom = 33
+	mobile_interact_button.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
+	mobile_interact_button.offset_left = -146
+	mobile_interact_button.offset_right = -18
+	mobile_interact_button.offset_top = -174
+	mobile_interact_button.offset_bottom = -110
+	drawer_button = _button("DRAWER_OPEN", func():
+		shop_dock.visible = not shop_dock.visible
+		command_panel.hide()
+		_refresh_structure()
+	)
+	controls.add_child(drawer_button)
+	drawer_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	drawer_button.offset_left = -152
+	drawer_button.offset_right = -18
+	drawer_button.offset_top = 198
+	drawer_button.offset_bottom = 262
+	structure_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	structure_panel.position = Vector2(304, 112)
+	structure_panel.size = Vector2(292, 0)
+	shop_dock.hide()
+	shop_dock.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	shop_dock.position = Vector2(264, 110)
+	shop_dock.custom_minimum_size = Vector2(360, 0)
+	shop_dock.size = Vector2(360, 0)
+	command_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+	command_panel.position = Vector2(264, 110)
+	command_panel.intent.custom_minimum_size.x = 312
+	command_panel.size = Vector2(360, 0)
+	minimap_column.get_parent().remove_child(minimap_column)
+	controls.add_child(minimap_column)
+	minimap_column.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	minimap_column.offset_left = -210
+	minimap_column.offset_right = -18
+	minimap_column.offset_top = 94
+	minimap_column.offset_bottom = 188
+	minimap_column.get_child(0).hide()
+	minimap_column.get_child(1).custom_minimum_size = Vector2(192, 94)
+	var top_bar = controls.get_child(1).get_child(0)
+	top_bar.get_child(0).hide()
+	top_bar.add_theme_constant_override("separation", 12)
+	resources_label.add_theme_font_size_override("font_size", 18)
+	for button in army_buttons.values():
+		button.custom_minimum_size = Vector2(108, 78)
+		button.add_theme_font_size_override("font_size", 12)
+		button.alignment = HORIZONTAL_ALIGNMENT_CENTER
+		for icon in button.get_children():
+			icon.hide()
+	for button in upgrade_buttons.values():
+		button.custom_minimum_size = Vector2(108, 78)
+		button.add_theme_font_size_override("font_size", 12)
+	route_selector.custom_minimum_size.x = 156
+	route_selector.add_theme_font_size_override("font_size", 12)
+	var orders = route_selector.get_parent()
+	orders.get_child(0).hide()
+	if orders is GridContainer:
+		var heading = orders.get_child(0)
+		orders.remove_child(heading)
+		heading.queue_free()
+	for child in orders.get_children():
+		if child is Button:
+			child.add_theme_font_size_override("font_size", 12)
+	guidance_panel.hide()
+	portrait_notice = _label("ROTATE_DEVICE", 24)
+	portrait_notice.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	portrait_notice.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	portrait_notice.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	portrait_notice.mouse_filter = Control.MOUSE_FILTER_STOP
+	controls.add_child(portrait_notice)
+	portrait_notice.hide()
 
 func _build_structure_panel() -> void:
 	structure_panel = PanelContainer.new()
@@ -301,15 +413,24 @@ func _build_structure_panel() -> void:
 	structure_button = _button("", _build_or_upgrade)
 	structure_button.custom_minimum_size.y = 38
 	column.add_child(structure_button)
+	for id in game.tower_data:
+		var button := _button("", _build_tower.bind(id))
+		button.custom_minimum_size.y = 64
+		button.add_theme_font_size_override("font_size", 12)
+		column.add_child(button)
+		tower_buttons[id] = button
 	structure_panel.hide()
 
 func _refresh_structure() -> void:
 	active_pad = game.nearest_pad(game.player) if game.player.alive else null
-	structure_panel.visible = active_pad != null and not game.match_finished
+	structure_panel.visible = active_pad != null and not game.match_finished and (not compact_mode or (not shop_dock.visible and (command_panel == null or not command_panel.visible)))
 	if active_pad == null:
 		return
 	var blocked: bool = game.match_finished or get_tree().paused
+	for button in tower_buttons.values():
+		button.visible = not active_pad.occupied()
 	if active_pad.occupied():
+		structure_button.show()
 		var tower = active_pad.tower
 		var owned: bool = tower.team == team
 		var cost: Vector2i = tower.upgrade_cost()
@@ -317,9 +438,20 @@ func _refresh_structure() -> void:
 		structure_button.text = tr("TOWER_UPGRADE") % [cost.x, cost.y] if tower.level < 3 else tr("MAX_LEVEL")
 		structure_button.disabled = blocked or not owned or tower.level >= 3 or not team.can_afford(cost.x, cost.y)
 	else:
-		structure_label.text = tr("TOWER_BUILD_INFO") % [tr(active_pad.pad_name), game.balance.tower_money, game.balance.tower_wood]
+		structure_button.hide()
+		for id in tower_buttons:
+			var definition = game.tower_data[id]
+			var button: Button = tower_buttons[id]
+			button.text = tr(definition.display_name) + "\n◈%s ♣%s · %s" % [definition.money_cost, definition.wood_cost, tr("TOWER_RANGE_SHORT") % definition.attack_range] + "\n" + tr("TOWER_COUNTER_" + String(id).to_upper())
+			button.tooltip_text = tr("TOWER_ROLE_" + String(id).to_upper())
+			button.disabled = blocked or not game.pad_access(game.player, active_pad) or active_pad.rebuild_remaining > 0.0 or (active_pad.home_team_id != 0 and active_pad.home_team_id != team.team_id) or not team.can_afford(definition.money_cost, definition.wood_cost)
+		structure_label.text = tr(active_pad.pad_name) + "\n" + tr("TOWER_CHOOSE")
 		structure_button.text = tr("BUILD") if active_pad.rebuild_remaining <= 0 else tr("REBUILD_TIMER") % ceili(active_pad.rebuild_remaining)
 		structure_button.disabled = blocked or active_pad.rebuild_remaining > 0 or (active_pad.home_team_id != 0 and active_pad.home_team_id != team.team_id) or not team.can_afford(game.balance.tower_money, game.balance.tower_wood)
+
+func _build_tower(id: StringName) -> void:
+	if active_pad != null:
+		_queue_purchase(MatchCommand.Action.BUILD, {"pad": active_pad, "tower_id": id}, tower_buttons[id])
 
 func _build_or_upgrade() -> void:
 	if active_pad == null:
@@ -420,6 +552,19 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _refresh() -> void:
 	_refresh_structure()
+	for id in ability_buttons:
+		var button = ability_buttons[id]
+		var remaining: float = game.player.ability_cooldowns[id]
+		button.text = tr("ABILITY_" + String(id).to_upper()) + ("\n%s" % ceili(remaining) if remaining > 0.0 else "\n" + ({&"dash": "Shift", &"guard": "F", &"heavy": "C"}[id] if not compact_mode else tr("ABILITY_READY")))
+		button.disabled = not game.player.alive or get_tree().paused or game.match_finished or remaining > 0.0 or game.player.stun_remaining > 0.0 or game.player.action_state != &"ready"
+	if healing_label != null:
+		healing_label.text = tr("HEAL_CHANNEL") % [game.player.health, game.player.max_health] if game.player.healing else (tr("HEAL_COOLDOWN") % ceili(game.player.heal_cooldown) if game.player.heal_cooldown > 0.0 else tr("HEAL_READY"))
+		if game.player.action_state != &"ready":
+			healing_label.text = tr("ACTION_" + String(game.player.action_state).to_upper())
+		if game.player.stun_remaining > 0.0:
+			healing_label.text = tr("STATUS_STUNNED")
+	if drawer_button != null:
+		drawer_button.text = tr("DRAWER_CLOSE" if shop_dock.visible else "DRAWER_OPEN")
 	if command_panel != null:
 		command_panel.refresh()
 	rally_button.text = tr("RALLY_BUTTON") if game.player.rally_cooldown <= 0.0 else tr("RALLY_COOLDOWN") % ceili(game.player.rally_cooldown)
@@ -466,6 +611,8 @@ func _refresh_shop() -> void:
 		var button: Button = army_buttons[id]
 		var description: String = ROLE_KEYS.get(id, ROLE_KEYS.get(game.unit_data[id].tactical_role, "ROLE_MELEE")) if id != &"worker" else "ROLE_WORKER"
 		button.text = tr("SHOP_CARD") % [tr("UNIT_WORKER" if id == &"worker" else game.unit_data[id].display_name), cost, tr(description)]
+		if compact_mode:
+			button.text = tr("UNIT_WORKER" if id == &"worker" else game.unit_data[id].display_name) + "\n◈ " + str(cost)
 		var capped: bool = (
 			team.worker_count >= game.rules.worker_cap
 			if id == &"worker"
@@ -491,6 +638,9 @@ func _refresh_shop() -> void:
 				cost_text,
 			]
 		)
+		if compact_mode:
+			button.tooltip_text = button.text
+			button.text = tr(definition.display_name) + "\n" + str(level) + " / " + str(definition.maximum_level) + "\n" + cost_text
 		button.disabled = not game.upgrade_availability(team, definition.id).allowed
 
 
@@ -522,6 +672,10 @@ func _command_completed(receipt: int, result: CommandResult) -> void:
 
 func show_king_tab() -> void:
 	tabs.current_tab = 1
+	if compact_mode:
+		shop_dock.show()
+		command_panel.hide()
+		_refresh_structure()
 
 
 func notify(key: String, arguments: Array = []) -> void:
@@ -576,6 +730,9 @@ func _restart() -> void:
 
 
 func focus_build_pad() -> void:
+	if compact_mode:
+		shop_dock.hide()
+		command_panel.hide()
 	_refresh_structure()
 
 
@@ -681,7 +838,7 @@ func _build_guidance() -> void:
 func _update_guidance() -> void:
 	if not is_instance_valid(guidance_panel):
 		return
-	guidance_panel.visible = GameSettings.onboarding_enabled and not get_tree().paused and not game.match_finished and game.match_seconds < 100 and not command_panel.visible
+	guidance_panel.visible = not compact_mode and GameSettings.onboarding_enabled and not get_tree().paused and not game.match_finished and game.match_seconds < 100 and not command_panel.visible
 	if game.tutorial != null:
 		guidance_panel.visible = not get_tree().paused and not game.match_finished and not command_panel.visible
 		guidance_text.text = game.tutorial.instruction()
@@ -728,6 +885,9 @@ func _close_help() -> void:
 
 func _toggle_commands() -> void:
 	command_panel.visible = not command_panel.visible
+	if compact_mode:
+		shop_dock.hide()
+		_refresh_structure()
 	_update_guidance()
 
 func _start_tutorial() -> void:
@@ -757,10 +917,24 @@ func _apply_safe_area() -> void:
 		var physical := Rect2(DisplayServer.get_display_safe_area())
 		if physical.has_area():
 			safe = bounds.intersection(get_viewport().get_screen_transform().affine_inverse() * physical)
+	if compact_mode and portrait_notice != null:
+		var portrait: bool = bounds.size.y > bounds.size.x
+		portrait_notice.visible = portrait
+		if portrait:
+			controls.move_child(portrait_notice, controls.get_child_count() - 1)
+		if portrait and not get_tree().paused and not game.match_finished:
+			_toggle_pause()
+			portrait_paused = true
+		elif not portrait and portrait_paused:
+			portrait_paused = false
+			if get_tree().paused and not game.match_finished:
+				_toggle_pause()
 	controls.offset_left = safe.position.x
 	controls.offset_top = safe.position.y
 	controls.offset_right = safe.end.x - bounds.end.x
 	controls.offset_bottom = safe.end.y - bounds.end.y
+	if compact_mode:
+		shop_dock.size.y = maxf(240.0, safe.size.y - 130.0)
 	if game.force_touch_controls or DisplayServer.is_touchscreen_available():
 		_ensure_touch_targets(controls)
 
