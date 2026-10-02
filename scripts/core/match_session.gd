@@ -14,16 +14,22 @@ var pending: Array[Dictionary] = []
 var publishing: bool = false
 var next_actor_id: int = 1
 var actors: Dictionary = {}
+var actors_in_order: Array[CombatEntity] = []
 
 func register_actor(actor: CombatEntity) -> int:
 	var identity := next_actor_id
 	next_actor_id += 1
 	actors[identity] = actor
-	actor.tree_exiting.connect(func(): actors.erase(identity))
+	actors_in_order.append(actor)
+	actor.tree_exiting.connect(func():
+		actors.erase(identity)
+		actors_in_order.erase(actor)
+	)
 	return identity
 
 func unregister_actor(actor: CombatEntity) -> void:
 	actors.erase(actor.match_id)
+	actors_in_order.erase(actor)
 	actor.remove_from_group("combatants")
 
 func start(owner_game) -> void:
@@ -50,7 +56,7 @@ func step() -> void:
 	game.rebuild_spatial()
 	# Children are created in stable match order. Keep a snapshot so newly created
 	# projectiles advance once, in the projectile phase, rather than twice.
-	for actor in actors.values():
+	for actor in actors_in_order.duplicate():
 		if state != State.RUNNING:
 			break
 		if is_instance_valid(actor) and not actor.is_queued_for_deletion():
@@ -64,6 +70,7 @@ func step() -> void:
 				projectile.step_gameplay(STEP)
 	for identity in actors.keys():
 		if not is_instance_valid(actors[identity]) or actors[identity].is_queued_for_deletion():
+			actors_in_order.erase(actors[identity])
 			actors.erase(identity)
 	if state == State.RUNNING and game.coordination != null:
 		game.coordination.step_gameplay(STEP)
@@ -91,6 +98,7 @@ func stop() -> void:
 	_clear_input()
 	_cancel_pending()
 	actors.clear()
+	actors_in_order.clear()
 	game = null
 
 func submit(command: MatchCommand) -> int:

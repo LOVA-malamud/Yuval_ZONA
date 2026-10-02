@@ -1,6 +1,6 @@
 # Crownfront architecture rebuild plan
 
-Status: planning complete; gameplay implementation has not started. Decisions incorporate the October 1, 2026 repository review and verification run.
+Historical architecture proposal from the October 1, 2026 review. The focused commander overhaul now implements a match session, command boundary, optional presentation and authored resources; see [contributor guide](contributor-guide.md) and [current acceptance evidence](overhaul-verification.md). Broader items below, including Android packaging/device targets and arbitrary route-count support, remain future work outside this overhaul.
 
 ## Outcome and decisions
 

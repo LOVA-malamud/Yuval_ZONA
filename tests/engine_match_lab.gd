@@ -81,6 +81,7 @@ func _run() -> void:
 	game.strategy_seed = seed
 	game.simulation_config = config
 	game.presentation_enabled = "--watch" in args
+	game.pause_on_focus_loss = false
 	game.process_mode = Node.PROCESS_MODE_INHERIT if game.presentation_enabled else Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
 	current_scene = game

@@ -139,8 +139,8 @@ func drive(body, delta: float) -> void:
 			base_threat = team.king.closest_enemy(600.0)
 	if game.rules.difficulty != &"easy" and body.alive and body.rally_cooldown <= 0.0:
 		var friends := 0
-		for unit in game.entities.get_children():
-			if unit is CombatEntity and unit.category == &"army" and unit.team == team and unit.position.distance_to(body.position) <= 300.0:
+		for unit in game.session.actors_in_order:
+			if unit.alive and unit.category == &"army" and unit.team == team and unit.position.distance_to(body.position) <= 300.0:
 				friends += 1
 		if friends >= 4 and (body.valid_enemy(target) or (game.rules.difficulty == &"hard" and friends >= 6)):
 			game.session.execute(MatchCommand.new(MatchCommand.Action.RALLY, actor.commander_id))

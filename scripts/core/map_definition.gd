@@ -16,6 +16,8 @@ func validation_errors() -> PackedStringArray:
 	var area := Rect2(Vector2.ZERO, bounds)
 	if bases.size() != 2 or routes.size() != 3:
 		errors.append("This game requires two bases and three routes")
+	if home_pads.is_empty() or home_pads.size() > 3 or neutral_pads.size() > 3:
+		errors.append("This game supports one to three home pads and up to three neutral pads")
 	for points in [bases, home_pads, neutral_pads, groves]:
 		for point in points:
 			if not point.is_finite() or not area.has_point(point):

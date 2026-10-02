@@ -296,10 +296,10 @@ func _build_structure_panel() -> void:
 	structure_panel.offset_bottom = 62
 	if game.force_touch_controls or DisplayServer.is_touchscreen_available():
 		structure_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
-		structure_panel.offset_left = 24
-		structure_panel.offset_right = 292
-		structure_panel.offset_top = 144
-		structure_panel.offset_bottom = 310
+		structure_panel.offset_left = 240
+		structure_panel.offset_right = 508
+		structure_panel.offset_top = 190
+		structure_panel.offset_bottom = 356
 	var column := VBoxContainer.new()
 	structure_panel.add_child(column)
 	structure_label = _label("", 15)
@@ -426,7 +426,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _refresh() -> void:
 	_refresh_structure()
-	if command_panel != null:
+	if command_panel != null and command_panel.visible:
 		command_panel.refresh()
 	rally_button.text = tr("RALLY_BUTTON") if game.player.rally_cooldown <= 0.0 else tr("RALLY_COOLDOWN") % ceili(game.player.rally_cooldown)
 	rally_button.disabled = not game.player.alive or game.player.rally_cooldown > 0.0 or game.match_finished or get_tree().paused
@@ -454,8 +454,8 @@ func _refresh() -> void:
 	if is_instance_valid(team.king) and team.king.danger_remaining > 0:
 		status_label.text += tr("KING_WARNING")
 	var rallying := 0
-	for unit in game.entities.get_children():
-		if unit is CombatEntity and unit.category == &"army" and unit.team == team and unit.rally_remaining > 0.0:
+	for unit in game.session.actors_in_order:
+		if unit.alive and unit.category == &"army" and unit.team == team and unit.rally_remaining > 0.0:
 			rallying += 1
 	status_label.text += "\n" + tr("RALLYING_COUNT") % rallying
 	route_selector.tooltip_text = tr("RECRUIT_LOCATION") % tr(RouteMap.LANE_NAMES[game.selected_route])
@@ -734,6 +734,8 @@ func _close_help() -> void:
 
 func _toggle_commands() -> void:
 	command_panel.visible = not command_panel.visible
+	if command_panel.visible:
+		command_panel.refresh()
 	_update_guidance()
 
 func _start_tutorial() -> void:

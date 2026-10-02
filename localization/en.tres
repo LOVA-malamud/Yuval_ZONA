@@ -222,7 +222,7 @@ messages = {
 [&"", &"ALERT_KING_DANGER"]: [&"%s: King in danger"],
 [&"", &"ALERT_PUSH_FORMING"]: [&"%s: Allied push forming"],
 [&"", &"MAP_RENEWABLE"]: [&"Renewable timber · protect worker trips"],
-[&"", &"MAP_NEUTRAL_PAD"]: [&"Neutral tower pad · hold the approach"],
+[&"", &"MAP_NEUTRAL_PAD"]: [&"Neutral pad · build a tower"],
 [&"", &"TUTORIAL_SKIP"]: [&"Skip tutorial"],
 [&"", &"HELP_COORDINATION_TITLE"]: [&"Command the local battle"],
 [&"", &"HELP_COORDINATION_BODY"]: [&"Orders tells your ally to push a lane, defend, escort you, or act automatically. Emergencies take priority. Its plans and recent shared spending are visible.\nQ Rally buffs allied troops within 300 for 8 seconds (+15% speed, +20% attack rate); cooldown 30 seconds. R Regroup gathers troops within 400 for 8 seconds; nearby combat takes priority."],

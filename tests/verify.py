@@ -13,13 +13,14 @@ import tempfile
 import time
 import io
 import hashlib
+import threading
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 REGRESSIONS = (
     "runtime_smoke", "tactical_regression", "route_travel", "navigation_parity",
     "localization_regression", "settings_audio_regression", "onboarding_regression",
-    "polish_regression", "game_lab", "step_parity", "definition_regression",
+    "polish_regression", "game_lab", "step_parity", "definition_regression", "difficulty_regression",
 )
 
 
@@ -40,7 +41,8 @@ def diagnostics(log: str, fixture: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=("fast", "full", "baseline", "desktop", "touch", "paired", "tuning"), default="fast")
+    parser.add_argument("--suite", choices=("fast", "full", "baseline", "desktop", "touch", "native", "render", "paired", "tuning"), default="fast")
+    parser.add_argument("--match-jobs", type=int, choices=range(1, 17), default=2)
     parser.add_argument("--godot", default=shutil.which("godot"))
     parser.add_argument("--output", type=Path, default=ROOT / "tests/artifacts/verification")
     parser.add_argument("--fixture", help="Run one named regression for diagnosis")
@@ -72,6 +74,7 @@ def main() -> int:
                 if path.is_file() and path.suffix in (".gd", ".tres", ".tscn"):
                     digest.update(str(path.relative_to(stage)).encode())
                     digest.update(path.read_bytes())
+        digest.update((stage / "project.godot").read_bytes())
         env = os.environ.copy()
         for name in ("XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
             env[name] = str(Path(temporary) / name.lower())
@@ -80,15 +83,28 @@ def main() -> int:
             if args.verbose and command[0] == args.godot:
                 command = [*command, "--verbose"]
             start = time.monotonic()
+            lines = []
+            process = subprocess.Popen(command, cwd=stage, env=env, text=True,
+                                       stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+            def collect():
+                for line in process.stdout:
+                    lines.append(line)
+                    # A script abort can leave an empty Godot window running.
+                    # Fail immediately rather than waiting for the wall timeout.
+                    # The settings fixture deliberately emits a ConfigFile error.
+                    if name != "settings_audio_regression" and ("SCRIPT ERROR:" in line or line.startswith("ERROR:")):
+                        process.terminate()
+            reader = threading.Thread(target=collect, daemon=True)
+            reader.start()
             try:
-                result = subprocess.run(command, cwd=stage, env=env, text=True,
-                                        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=timeout)
-                log, code = result.stdout, result.returncode
-            except subprocess.TimeoutExpired as error:
-                raw = error.stdout or b""
-                log = raw.decode(errors="replace") if isinstance(raw, bytes) else raw
-                log += "\nVerification wall-clock timeout\n"
+                code = process.wait(timeout=timeout)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+                lines.append("\nVerification wall-clock timeout\n")
                 code = 124
+            reader.join()
+            log = "".join(lines)
             (output / f"{name}.log").write_text(log)
             errors = diagnostics(log, name)
             passed = code == 0 and not errors
@@ -117,7 +133,7 @@ def main() -> int:
                     run("replay", ["python3", "tests/validate_replay.py", "tests/artifacts/matches.json"])
             if args.suite == "tuning" and all(check["passed"] for check in checks):
                 run("pacing_matches", ["python3", "tests/run_lab.py", "--suite", "matches", "--seeds", ",".join(map(str, range(42, 62))),
-                                       "--jobs", "2", "--godot", args.godot, "--scenarios", "tests/scenarios/pacing.json",
+                                       "--jobs", str(args.match_jobs), "--godot", args.godot, "--scenarios", "tests/scenarios/pacing.json",
                                        "--sample-seconds", "5", "--no-html", "--output", "tests/artifacts/pacing.json"], 18000)
                 if (stage / "tests/artifacts/pacing.json").exists():
                     run("pacing_replay", ["python3", "tests/validate_replay.py", "tests/artifacts/pacing.json"])
@@ -141,6 +157,11 @@ def main() -> int:
                 for locale in ("en", "ru"):
                     for scenario in ("battle", "commands", "tutorial", "victory", "settings", "cutout"):
                         run(f"touch_{scenario}_{locale}", [args.godot, "--path", str(stage), "--script", "tests/visual_review.gd", "--", scenario, "1600x720", locale], 45)
+                run("live_input", [args.godot, "--path", str(stage), "tests/live_playtest.tscn", "--", "finish"])
+            if args.suite == "native":
+                run("live_input", [args.godot, "--path", str(stage), "tests/live_playtest.tscn", "--", "finish", "display"])
+            if args.suite == "render":
+                run("render_parity", [args.godot, "--path", str(stage), "--script", "tests/render_parity.gd"])
         shutil.copytree(stage / "tests/artifacts", output / "artifacts", dirs_exist_ok=True)
     summary = dict(suite=args.suite, commit=commit, engine=engine, checks=checks,
                    source_digest=digest.hexdigest(),

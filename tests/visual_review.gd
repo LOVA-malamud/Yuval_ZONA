@@ -20,6 +20,7 @@ func _run() -> void:
 	capture_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	root.add_child(capture_viewport)
 	var game = load("res://scenes/main/tutorial.tscn" if scenario == "tutorial" else "res://scenes/main/main.tscn").instantiate()
+	game.pause_on_focus_loss = false
 	game.force_touch_controls = requested_size == Vector2i(1600, 720) or scenario == "cutout"
 	if scenario == "cutout":
 		game.safe_area_override = Rect2(60, 24, requested_size.x - 100, requested_size.y - 48)

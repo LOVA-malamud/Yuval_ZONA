@@ -9,8 +9,11 @@ extends Resource
 func validation_errors() -> PackedStringArray:
 	var errors := PackedStringArray()
 	var identities := {}
+	var roles := {}
 	if army_scene == null or worker_scene == null or units.is_empty():
 		errors.append("Catalog needs army/worker scenes and unit definitions")
+	if upgrades.size() != 8:
+		errors.append("This game requires its eight upgrade tracks")
 	for unit in units:
 		if unit == null:
 			errors.append("Catalog contains a missing unit")
@@ -18,6 +21,7 @@ func validation_errors() -> PackedStringArray:
 		if unit.id == &"" or identities.has(unit.id) or unit.id in [&"worker", &"king", &"tower", &"player"]:
 			errors.append("Invalid or duplicate unit ID: %s" % unit.id)
 		identities[unit.id] = true
+		roles[unit.tactical_role] = true
 		if not unit.tactical_role in [&"melee", &"ranged", &"tank"] or unit.money_cost < 0:
 			errors.append("Invalid unit role/cost: %s" % unit.id)
 		if tr(unit.display_name) == unit.display_name:
@@ -28,6 +32,9 @@ func validation_errors() -> PackedStringArray:
 				errors.append("Invalid unit value: %s.%s" % [unit.id, field])
 		if not is_finite(unit.damage) or unit.damage < 0 or not is_finite(unit.structure_damage_multiplier) or unit.structure_damage_multiplier < 0:
 			errors.append("Invalid unit damage: %s" % unit.id)
+	for role in [&"melee", &"ranged", &"tank"]:
+		if not roles.has(role):
+			errors.append("Missing army role: %s" % role)
 	identities.clear()
 	var defaults := GameTeam.new()
 	for upgrade in upgrades:

@@ -4,22 +4,34 @@ Branch: `feat/command-and-coordination-overhaul`; original reference: `707a51a` 
 
 ## Completed integration checks
 
-`tests/artifacts/overhaul_final_gate/summary.json` passes source validation, matching English/Russian localization, Python scenario/selection checks, Godot import, the original runtime/navigation/settings/localization/onboarding/polish labs, fixed-step presentation parity, definition extensions, coordination and session lifecycle regressions.
+`tests/artifacts/overhaul_battle_parity_fixed/summary.json` passes source validation (90 Godot files, 99 resource paths), matching English/Russian localization (224 keys), nine Python scenario/selection checks, Godot import, the original runtime/navigation/settings/localization/onboarding/polish labs, fixed-step presentation parity, definition extensions, equal-stat difficulty behavior, coordination and session lifecycle regressions.
 
-Coverage includes FIFO resource contention, invalid actor/route/payload, purchase creation failure, cancellation, pause/resume/end/teardown, per-match registry ownership, persistent orders, human spending against AI reservations, Rally bonuses/exclusions/cooldown, temporary Regroup/replacement, alert suppression, spending/damage/tower attribution and the complete playable tutorial progression.
+Coverage includes FIFO resource contention, invalid actor/route/payload, purchase creation failure, cancellation, pause/resume/end/teardown, per-match registry ownership, persistent orders, human spending against AI reservations, Rally bonuses/exclusions/cooldown, temporary Regroup/replacement, alert suppression, spending/damage/tower attribution and the complete playable tutorial progression. Targeted follow-up coverage checks terrain/freed focus targets and actions completed before their tutorial lesson.
+
+| Render/input check | Evidence |
+| --- | --- |
+| Initial complete bilingual matrix | `overhaul_rendered`: all 60 exact-size captures and native input pass |
+| Final rendered matrix | `overhaul_final_desktop`: 60 captures, two cutout captures and rendered 30/60 FPS trace pass |
+| Corrected touch layout | `overhaul_touch_targets`: 12 bilingual phone/cutout captures, bounds and 48-pixel button/tab checks pass |
+| Actual native Linux feature input | `overhaul_native_display`: 47/47 checks pass, including commands, focus, difficulty persistence/next-match application and tutorial start/restart/skip |
+| Asymmetric version-1 compatibility | `overhaul_assignments`: seeds 42/43 with baseline, normal four-worker team and swapped four-worker team; JSON and browser pass |
+| Actual version-3 and old replay views | Baseline-20 and assignment HTML pass Chromium playback, final stop, seek, event jumps, tooltips, responsive layout, old views and technical-failure display |
+
+Native Hyprland resized the window to **922×1030**; the native capture records that actual size. Rendered layout captures use explicit SubViewports at **1280×720, 1280×800, 1920×1080, 1600×720 and 1280×960**, rather than treating requested native window dimensions as actual pixels.
+
+The final desktop composite initially failed because its native fixture used the wrong class for the system-Back notification constant. Its rendering checks passed; the corrected native/touch runs above supersede that failed input check. The composite’s failed summary remains preserved rather than rewritten as a pass.
 
 The original three-seed historical reference completed at 761.35 seconds, 1240.67 seconds and one 1800-second timeout. That small sample establishes provenance, not a pacing conclusion. Intermediate feature captures are retained locally but are not the final tuning evidence.
 
 ## Final measurements in progress
 
-The completed current-game baseline, seeds 42–61, has median duration **1012.66 seconds (16.88 minutes)**, zero timeouts and zero technical failures. All twenty are Ember wins. The scripted human-slot commander is not a human playtest; this strong assignment bias prevents a competitive-balance claim. The remaining seven configurations are still running. Baseline meets the pacing criteria and has zero changed tuning values, so the selection rule will retain it if the complete experiment validates successfully.
+The previous baseline and partial factorial sweep are superseded. A new battle-trace regression reproduced a frame-rate-dependent Rally at tick 53: AI counted dead troops awaiting render-frame deletion. AI now counts living actors in the match registry, and the same death/projectile trace passes at both 30 and 60 FPS. Earlier pacing data is archived under `tests/artifacts/overhaul_pacing_before_registry_fix`; it must not determine final tuning.
 
-- Rendered bilingual matrix: five sizes, battle/orders/rally/tutorial/result/settings, plus simulated cutouts, touch targets, native feature input and rendered 30/60 FPS parity. Final destination: `tests/artifacts/overhaul_final_desktop`.
-- Paired pacing: 20 seeds (42–61), baseline and seven factorial candidates, grouping waits 3/6 seconds, troop speed 1/1.15, tower HP 432/480. Final destination: `tests/artifacts/overhaul_final_pacing`.
-- Performance: three baseline/current capacity comparisons, corrected projectile phase, same machine without concurrent Godot load. Destination: `tests/artifacts/performance_overhaul`.
-- Final replay JSON/HTML and browser checks, asymmetric assignment evidence and any selected balance changes remain pending.
+The final experiment reruns all 160 comparisons on the corrected source: seeds 42–61, baseline and seven factorial candidates, grouping waits 3/6 seconds, troop speed 1/1.15, tower HP 432/480. Selection requires a median of 720–1080 seconds and at most two timeouts, preferring the fewest changed values, then closest to 900 seconds. If no candidate qualifies, select the closest target without increasing baseline timeouts and document the unmet target.
 
-Do not interpret a pending measurement as a pass. This file will record final selection, timing and native/rendered outcomes once those runs finish.
+Three sequential headless capacity comparisons include projectile updates and all 115 actors. Registry caching and avoiding hidden command-panel refreshes reduced the observed regression; the current median p95 is 5.891 ms versus 5.031 ms, a 17.1% increase (0.860 ms). This remains a measured CPU cost. Rendered comparison p50 improved from 3.887 ms to 3.445 ms; p95 increased from 9.145 ms to 10.100 ms (+10.4%), and median per-run maximum increased from 15.132 ms to 17.735 ms (+17.2%). Reports and exact 1280×720 images are in `tests/artifacts/performance_overhaul_rendered`. Both stress comparisons exceed the investigation threshold. The fixed session performs command validation, coordination and two spatial refreshes each authoritative tick; actor-list caching and hidden-panel throttling reduce allocations, but do not remove this cost. The frame distribution also changes with the fixed clock, so improved median frame time does not establish uniformly better performance. The first rendered attempt exposed a baseline fixture dimension assertion that compared its SubViewport image to the compositor-resized root window. The fixture now compares against the requested render surface.
+
+Final pacing selection and final-source full-match verification remain pending. Do not interpret a pending measurement as a pass.
 
 ## Scope and limits
 

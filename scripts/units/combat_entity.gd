@@ -101,11 +101,8 @@ func effective_move_speed() -> float:
 func closest_enemy(radius: float) -> CombatEntity:
 	var best: CombatEntity = null
 	var best_distance: float = radius
-	for node in game.session.actors.values():
-		if not is_instance_valid(node):
-			continue
-		var candidate := node as CombatEntity
-		if not is_instance_valid(candidate) or not valid_enemy(candidate):
+	for candidate in game.session.actors_in_order:
+		if not valid_enemy(candidate):
 			continue
 		var distance: float = edge_distance(candidate)
 		if distance <= best_distance and game.navigation.clear_line(global_position, candidate.global_position):

@@ -108,6 +108,7 @@ def main() -> None:
                 digest.update(str(path.relative_to(ROOT)).encode())
                 digest.update(path.read_bytes())
     digest.update((ROOT / "tests/engine_match_lab.gd").read_bytes())
+    digest.update((ROOT / "project.godot").read_bytes())
     engine_version = subprocess.check_output([engine, "--version"], text=True).strip()
     output: dict = {"version": 1, "engine": engine, "engine_version": engine_version, "source_digest": digest.hexdigest(), "suite": args.suite, "seeds": args.seeds, "limit_seconds": args.limit_seconds, "sample_seconds": args.sample_seconds}
     destination = Path(args.output)

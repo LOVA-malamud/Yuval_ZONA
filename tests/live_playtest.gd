@@ -21,6 +21,7 @@ func _run() -> void:
 	var original_path: String = GameSettings.storage_path
 	var original_locale: String = Localization.language
 	var original_preferences := [GameSettings.master_volume, GameSettings.sfx_volume, GameSettings.fullscreen, GameSettings.onboarding_enabled]
+	var original_difficulty: StringName = GameSettings.difficulty
 	var original_bytes := FileAccess.get_file_as_bytes(original_path) if FileAccess.file_exists(original_path) else PackedByteArray()
 	GameSettings.storage_path = TEST_SETTINGS
 	if FileAccess.file_exists(TEST_SETTINGS):
@@ -186,15 +187,52 @@ func _run() -> void:
 	game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
 	await get_tree().process_frame
 	check(get_tree().paused and game.player.controller.touch_index == -1, "Application focus loss pauses and clears held touch input")
-	game.notification(MainLoop.NOTIFICATION_WM_GO_BACK_REQUEST)
+	game.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await get_tree().process_frame
 	check(not get_tree().paused, "System Back resumes paused match")
-	game.hud._restart()
+	get_viewport().push_input(escape, true)
+	await get_tree().process_frame
+	await click_control(find_button(game.hud.result_overlay, "RESTART"))
 	await get_tree().process_frame
 	await get_tree().process_frame
 	game = get_tree().current_scene
 	check(game.commanders.size() == 4 and not game.match_finished,"Restart produces fresh four-commander match")
+	get_viewport().push_input(escape, true)
+	await get_tree().process_frame
+	await click_control(game.hud.difficulty_selector)
+	var difficulty_popup: PopupMenu = game.hud.difficulty_selector.get_popup()
+	for attempt in range(4):
+		if difficulty_popup.get_focused_item() == 2:
+			break
+		await key_event(KEY_DOWN, difficulty_popup)
+	await key_event(KEY_ENTER, difficulty_popup)
+	check(GameSettings.difficulty == &"hard" and game.rules.difficulty == &"standard", "Native difficulty selector changes the next match only")
+	config.load(TEST_SETTINGS)
+	check(config.get_value("gameplay", "difficulty") == "hard", "Difficulty preference persists in isolated settings")
+	await click_control(find_button(game.hud.result_overlay, "TUTORIAL_BUTTON"))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	game = get_tree().current_scene
+	check(game.tutorial_mode and game.tutorial.stage == TutorialDirector.Stage.MOVE, "Mouse starts a separate playable tutorial")
+	Input.action_press("move_right")
+	await get_tree().create_timer(0.4).timeout
+	Input.action_release("move_right")
+	check(game.tutorial.stage == TutorialDirector.Stage.ATTACK, "Real movement advances tutorial lesson")
+	get_viewport().push_input(escape, true)
+	await get_tree().process_frame
+	await click_control(find_button(game.hud.result_overlay, "RESTART"))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	game = get_tree().current_scene
+	check(game.tutorial_mode and game.tutorial.stage == TutorialDirector.Stage.MOVE, "Mouse restart resets tutorial progress")
+	await click_control(find_button(game.hud.guidance_panel, "TUTORIAL_SKIP"))
+	await get_tree().process_frame
+	await get_tree().process_frame
+	game = get_tree().current_scene
+	check(not game.tutorial_mode and game.tutorial == null, "Mouse skips tutorial into a fresh ordinary match")
+	check(game.rules.difficulty == &"hard" and game.teams[0].money == game.teams[1].money and game.teams[0].wood == game.teams[1].wood and game.teams[0].worker_count == game.teams[1].worker_count, "Fresh match applies Hard with equal team resources")
 	await capture_languages()
+	GameSettings.difficulty = original_difficulty
 	GameSettings.storage_path = original_path
 	GameSettings.set_master_volume(original_preferences[0], false)
 	GameSettings.set_sfx_volume(original_preferences[1], false)

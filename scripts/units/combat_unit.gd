@@ -24,7 +24,7 @@ func step_gameplay(delta: float) -> void:
 		if tactical_role == &"tank":
 			var structure: CombatEntity = null
 			var distance: float = detection_range
-			for candidate in game.session.actors.values():
+			for candidate in game.session.actors_in_order:
 				if valid_enemy(candidate) and candidate.kind in [&"king", &"tower"] and edge_distance(candidate) < distance and game.navigation.clear_line(position,candidate.position):
 					structure = candidate
 					distance = edge_distance(candidate)

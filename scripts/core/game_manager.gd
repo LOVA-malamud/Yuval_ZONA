@@ -23,6 +23,7 @@ var commanders: Array = []
 const HUMAN_CONTROLLER = preload("res://scripts/player/human_controller.gd")
 const AI_CONTROLLER = preload("res://scripts/ai/enemy_ai.gd")
 @export var presentation_enabled: bool = true
+@export var pause_on_focus_loss: bool = true
 var session: MatchSession
 var coordination: CoordinationService
 @export var force_touch_controls: bool = false
@@ -336,7 +337,7 @@ func _purchase(team_id: int, id: StringName, feedback: bool = true, route_id: in
 	recruit.died.connect(_on_recruit_died)
 	entities.add_child(recruit)
 	if feedback:
-		notify("RECRUITED", ["UNIT_" + String(id).to_upper()])
+		notify("RECRUITED", ["UNIT_WORKER" if id == &"worker" else unit_data[id].display_name])
 		play_sound(&"purchase")
 	return true
 
@@ -507,7 +508,7 @@ func launch_projectile(team_id: int, start: Vector2, aim: Vector2, damage: float
 func rebuild_spatial() -> void:
 	# One shared broad phase avoids a full-tree scan per moving actor per frame.
 	spatial.clear()
-	for entity in session.actors.values():
+	for entity in session.actors_in_order:
 		if not is_instance_valid(entity) or not entity.alive or entity.is_queued_for_deletion():
 			continue
 		var cell := Vector2i((entity.position / 100.0).floor())
@@ -543,5 +544,5 @@ func _notification(what: int) -> void:
 		event.pressed = true
 		hud._unhandled_input(event)
 	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
-		if is_instance_valid(session) and session.state == MatchSession.State.RUNNING and presentation_enabled and is_instance_valid(hud):
+		if pause_on_focus_loss and is_instance_valid(session) and session.state == MatchSession.State.RUNNING and presentation_enabled and is_instance_valid(hud):
 			hud._toggle_pause()

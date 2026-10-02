@@ -40,11 +40,8 @@ func step_gameplay(delta: float) -> void:
 		return
 	var struck: CombatEntity = null
 	var nearest: float = INF
-	for node in game.session.actors.values():
-		if not is_instance_valid(node):
-			continue
-		var entity := node as CombatEntity
-		if entity == null or not entity.alive or not entity.team.is_enemy(owner_team_id):
+	for entity in game.session.actors_in_order:
+		if not is_instance_valid(entity) or not entity.alive or not entity.team.is_enemy(owner_team_id):
 			continue
 		var contact: Vector2 = Geometry2D.get_closest_point_to_segment(entity.global_position, global_position, finish)
 		if entity.global_position.distance_to(contact) <= entity.body_radius + RADIUS:

@@ -18,6 +18,7 @@ func _run() -> void:
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
 	check(Engine.physics_ticks_per_second == 60, "Production physics clock is pinned to 60 Hz")
+	check(game.session.actors_in_order == game.session.actors.values(), "Ordered actor cache matches stable registry identities")
 	check(game.hud == null and game.effect_count == 0 and game.get_node_or_null("Battlefield") == null, "Presentation-disabled session owns no HUD, effects or battlefield")
 	var results := {}
 	game.session.command_completed.connect(func(id, result): results[id] = result)
@@ -39,6 +40,7 @@ func _run() -> void:
 	var second: int = game.session.submit(MatchCommand.new(MatchCommand.Action.RECRUIT, 2, {"id": &"melee", "route": 1}))
 	game.session.step()
 	check(results[first].success and not results[second].success and game.teams[0].combat_count == 1 and game.teams[0].money == 0, "FIFO teammates cannot double spend")
+	check(game.session.actors_in_order == game.session.actors.values(), "Recruitment updates both registry indexes atomically")
 	var cancelled: int = game.session.submit(MatchCommand.new(MatchCommand.Action.RECRUIT, 1, {"id": &"worker", "route": 1}))
 	game.session.pause()
 	check(results[cancelled].reason == &"cancelled", "Pause completes queued commands as cancelled")

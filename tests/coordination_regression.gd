@@ -75,6 +75,21 @@ func _run() -> void:
 	var hp: float = game.teams[1].king.health
 	game.teams[1].king.take_damage(50.0, 1, 1)
 	check(game.coordination.commander_stats[1].king_damage == 50.0 and game.teams[1].king.health == hp - 50.0, "Actual King damage attributed without overkill")
+	request(MatchCommand.Action.RECRUIT, {"id": &"melee", "route": 1}, 3)
+	var enemy = game.entities.get_child(game.entities.get_child_count() - 1)
+	enemy.position = game.player.position + Vector2(50, 0)
+	game.player.controller._select_target(game.player.get_canvas_transform() * enemy.position)
+	check(game.player.controller.focus_target == enemy, "Focus selection chooses a locally detected enemy")
+	game.player.position = Vector2(1200, 900)
+	enemy.position = Vector2(1320, 900)
+	game.player.controller.drive(game.player, MatchSession.STEP)
+	check(game.player.controller.focus_target == null, "Terrain occlusion clears focus before applying attack input")
+	enemy.position = game.player.position + Vector2(-50, 0)
+	game.player.controller._select_target(game.player.get_canvas_transform() * enemy.position)
+	enemy.die()
+	await process_frame
+	game.player.controller.drive(game.player, MatchSession.STEP)
+	check(game.player.controller.focus_target == null, "Freed focus target clears without a stale-object error")
 	# Factory failure must leave wallet and roster unchanged.
 	game.catalog = game.catalog.duplicate(true)
 	game.catalog.army_scene = null
@@ -108,6 +123,34 @@ func _run() -> void:
 	check(game.tutorial.stage == TutorialDirector.Stage.KING, "Tower purchase advances tutorial")
 	game.teams[1].king.take_damage(9999, 1)
 	check(game.match_finished and game.tutorial.stage == TutorialDirector.Stage.COMPLETE, "King defeat completes tutorial")
+	paused = false
+	game.free()
+	await process_frame
+	# Actions performed before their lesson must not strand later progression.
+	game = load("res://scenes/main/tutorial.tscn").instantiate()
+	game.presentation_enabled = false
+	game.process_mode = Node.PROCESS_MODE_DISABLED
+	root.add_child(game)
+	game.tutorial.dummy.take_damage(9999, 1)
+	game.teams[1].king.take_damage(9999, 1)
+	check(game.tutorial.stage == TutorialDirector.Stage.MOVE and game.teams[1].king.health == 120, "Early practice kill is remembered and King remains protected")
+	game.player.position += Vector2(65, 0)
+	game.tutorial.step_gameplay()
+	check(game.tutorial.stage == TutorialDirector.Stage.RECRUIT, "Earlier practice kill satisfies the attack lesson after movement")
+	game.select_route(1)
+	request(MatchCommand.Action.RECRUIT, {"id": &"melee", "route": 1})
+	var early_recruit = game.entities.get_child(game.entities.get_child_count() - 1)
+	game.session.step()
+	game.player.position = game.pads[0].position
+	request(MatchCommand.Action.BUILD, {"pad": game.pads[0]})
+	check(game.tutorial.stage == TutorialDirector.Stage.COORDINATE and game.tutorial.tower_built, "Early tower purchase is remembered without skipping coordination")
+	early_recruit.position = game.player.position + Vector2(30, 0)
+	request(MatchCommand.Action.ALLY_ORDER, {"order": &"center"})
+	request(MatchCommand.Action.RALLY)
+	game.session.step()
+	check(game.tutorial.stage == TutorialDirector.Stage.KING, "Remembered tower purchase completes its later lesson")
+	game.teams[1].king.take_damage(9999, 1)
+	check(game.match_finished and game.tutorial.stage == TutorialDirector.Stage.COMPLETE, "Out-of-order tutorial actions still reach completion")
 	paused = false
 	game.free()
 	await process_frame

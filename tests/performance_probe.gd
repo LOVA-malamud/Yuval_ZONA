@@ -37,11 +37,20 @@ func _run() -> void:
 	Engine.max_fps = 0
 	seed(67231)
 	game = load("res://scenes/main/main.tscn").instantiate()
+	game.pause_on_focus_loss = false
 	game.process_mode = Node.PROCESS_MODE_DISABLED
-	root.add_child(game)
-	current_scene = game
+	var capture_viewport: Viewport = root
+	if mode != "headless":
+		var surface := SubViewport.new()
+		surface.size = Vector2i(int(size_parts[0]), int(size_parts[1]))
+		surface.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+		root.add_child(surface)
+		capture_viewport = surface
+	capture_viewport.add_child(game)
+	current_scene = game if mode == "headless" else capture_viewport
 	await process_frame
 	_setup_capacity()
+	game.player.controller.set_scripted_command(Vector2.ZERO, false)
 	if get_nodes_in_group("combatants").size() != 115:
 		push_error("Capacity fixture must contain exactly 115 actors")
 		quit(1)
@@ -82,7 +91,7 @@ func _run() -> void:
 		game.process_mode = Node.PROCESS_MODE_DISABLED
 		await process_frame
 		RenderingServer.force_draw()
-		var picture := root.get_texture().get_image()
+		var picture := capture_viewport.get_texture().get_image()
 		picture.save_png("res:/" + "/tests/artifacts/performance_%s_%s.png" % [label, dimensions])
 		if picture.get_size() != Vector2i(int(size_parts[0]), int(size_parts[1])):
 			push_error("Incorrect rendered performance dimensions")

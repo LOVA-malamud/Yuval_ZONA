@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--godot', default=shutil.which('godot'))
     parser.add_argument('--output', type=Path, default=ROOT / 'tests/artifacts/performance_overhaul')
     parser.add_argument('--wait-for-idle', action='store_true', help='Wait for other Godot instances to exit before measuring')
+    parser.add_argument('--mode', choices=('headless', 'rendered'), default='headless')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     def godot_running():
@@ -64,6 +65,21 @@ def main():
                     '\t\t\tif not projectile.is_queued_for_deletion():\n'
                     '\t\t\t\tprojectile._physics_process(STEP)\n'
                     '\t\tvar after_units := Time.get_ticks_usec()')
+                source = source.replace('"p95": values[', '"p50": values[int(values.size() * 0.5)], "p95": values[')
+                source = source.replace('\troot.add_child(game)\n\tcurrent_scene = game',
+                    '\tvar capture_viewport: Viewport = root\n'
+                    '\tif mode != "headless":\n'
+                    '\t\tvar surface := SubViewport.new()\n'
+                    '\t\tsurface.size = Vector2i(int(size_parts[0]), int(size_parts[1]))\n'
+                    '\t\tsurface.render_target_update_mode = SubViewport.UPDATE_ALWAYS\n'
+                    '\t\troot.add_child(surface)\n'
+                    '\t\tcapture_viewport = surface\n'
+                    '\tcapture_viewport.add_child(game)\n'
+                    '\tcurrent_scene = game if mode == "headless" else capture_viewport')
+                source = source.replace('var picture := root.get_texture().get_image()', 'var picture := capture_viewport.get_texture().get_image()')
+                source = source.replace('if picture.get_size() != root.size:', 'if picture.get_size() != Vector2i(int(size_parts[0]), int(size_parts[1])):')
+                source = source.replace('\t_setup_capacity()\n', '\t_setup_capacity()\n\tgame.player.controller.set_scripted_command(Vector2.ZERO, false)\n')
+                source = source.replace('\tif _total_damage_taken() <= 1000.0', '\tif mode != "headless" and capture_viewport.get_texture().get_image().get_size() != Vector2i(int(size_parts[0]), int(size_parts[1])):\n\t\tpush_error("Incorrect baseline rendered dimensions")\n\t\tquit(1)\n\t\treturn\n\tif _total_damage_taken() <= 1000.0')
                 fixture.write_text(source)
             else:
                 shutil.copytree(ROOT, stage, ignore=shutil.ignore_patterns('.git', '.godot', '.aws', '.codex', 'artifacts', 'builds', '__pycache__'))
@@ -72,7 +88,8 @@ def main():
             for key in ('XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME'):
                 env[key] = str(Path(temporary) / key.lower())
             def run(label, arguments):
-                result = subprocess.run([args.godot, '--headless', '--path', str(stage), *arguments],
+                headless = args.mode == 'headless' or label.endswith('_import')
+                result = subprocess.run([args.godot, *(['--headless'] if headless else []), '--path', str(stage), *arguments],
                     cwd=stage, env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=180)
                 (args.output / f'{label}.log').write_text(result.stdout)
                 if result.returncode or diagnostics(result.stdout, label):
@@ -81,17 +98,20 @@ def main():
             run(f'{version}_import', ['--editor', '--import', '--quit'])
             for index in range(3):
                 label = f'{version}_{index+1}'
-                log = run(label, ['--script', 'tests/performance_probe.gd', '--', 'headless', '1280x720', label, '15'])
+                log = run(label, ['--script', 'tests/performance_probe.gd', '--', args.mode, '1280x720', label, '15'])
                 report = json.loads(next(line.removeprefix('PERFORMANCE REPORT ') for line in log.splitlines() if line.startswith('PERFORMANCE REPORT ')))
                 reports.append(report)
-                print(f'{label}: p95={report["metrics"]["total_script_ms"]["p95"]:.3f}ms', flush=True)
+                measurement = 'total_script_ms' if args.mode == 'headless' else 'frame_ms'
+                print(f'{label}: {measurement} p95={report["metrics"][measurement]["p95"]:.3f}ms', flush=True)
+                for artifact in (stage / 'tests/artifacts').glob(f'performance_{label}*'):
+                    shutil.copy2(artifact, args.output / artifact.name)
     summary = {}
     for metric in ('p50', 'p95', 'max'):
-        baseline = median(r['metrics']['total_script_ms'][metric] for r in reports if r['label'].startswith('baseline'))
-        current = median(r['metrics']['total_script_ms'][metric] for r in reports if r['label'].startswith('current'))
+        baseline = median(r['metrics'][measurement][metric] for r in reports if r['label'].startswith('baseline'))
+        current = median(r['metrics'][measurement][metric] for r in reports if r['label'].startswith('current'))
         summary[metric] = dict(baseline_ms=baseline, current_ms=current, change_percent=(current / baseline - 1) * 100)
-    payload = dict(hardware=platform.uname()._asdict(), baseline=args.baseline, runs=reports, summary=summary,
-                   baseline_correction='Added missing projectile physics update; otherwise original fixture.',
+    payload = dict(hardware=platform.uname()._asdict(), baseline=args.baseline, mode=args.mode, runs=reports, summary=summary,
+                   baseline_correction='Added missing projectile physics update, p50 reporting, exact-size render surface and deterministic idle human input; production baseline code unchanged.',
                    needs_investigation=summary['p95']['change_percent'] > 10)
     (args.output / 'comparison.json').write_text(json.dumps(payload, indent=2) + '\n')
     print(json.dumps(summary, indent=2))

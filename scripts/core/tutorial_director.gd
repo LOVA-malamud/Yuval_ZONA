@@ -27,8 +27,13 @@ func setup(owner_game) -> void:
 	game.teams[1].king.damage = 0.0
 	game.teams[1].stats[&"king_health"] = 120.0
 	game.teams[1].stats[&"king_damage"] = 0.0
-	dummy = game.UNIT_SCENE.instantiate()
-	dummy.configure(game.teams[1], game, game.unit_data[&"melee"])
+	var practice_definition: UnitStats
+	for definition in game.unit_data.values():
+		if definition.tactical_role == &"melee":
+			practice_definition = definition
+			break
+	dummy = game.catalog.army_scene.instantiate()
+	dummy.configure(game.teams[1], game, practice_definition)
 	dummy.position = start_position + Vector2(140, 0)
 	dummy.practice_unit = true
 	dummy.died.connect(func(_dead):
