@@ -19,24 +19,15 @@ The verification workflow targets Godot 4.7.2. Run the isolated fast suite with:
 python3 tests/verify.py --suite fast
 ```
 
-At this checkpoint, all 17 fast verification checks passed, including command
-validation, shared-wallet contention, cancellation, coordination, tutorial
-progress, resource-extension checks and presentation parity. Reports are local
-ignored artifacts under `tests/artifacts/overhaul_final_gate/`.
+The corrected final source passes the 18-check fast gate, all 82 desktop checks (the complete bilingual five-size matrix, cutouts, native controls and a death/projectile trace at 30/60 FPS), and 47 native feature/input checks including fullscreen restoration. Detailed evidence and remaining measurements are in [overhaul-verification.md](overhaul-verification.md).
 
-The overhaul is an implementation checkpoint, not a completed release gate.
-Final rendered/native-input verification, the complete 160-match pacing sweep,
-performance comparisons, and final documentation remain incomplete. Earlier
-rendered cases passed individually, but interrupted runs have no final suite
-summary. No pacing adjustment should be justified from the partial sweep.
-Physical phone/tablet testing has not been performed. Existing documentation
-about earlier milestones remains historical evidence, not verification of this
-branch.
+The complete 160-match pacing sweep and final three-match comparison are running. Earlier pacing data is superseded by a correction to AI counting of queued dead troops. Three baseline/current capacity comparisons in each mode are complete; p95 regressed 17.1% for headless CPU and 10.4% for rendered frame time. Registry caching and avoiding hidden UI refreshes reduce the cost, but a regression remains. Physical phone/tablet testing has not been performed.
 
-Pending verification entry points:
+Final verification entry points:
 
 ```sh
 python3 tests/verify.py --suite desktop
-python3 tests/verify.py --suite tuning
+python3 tests/verify.py --suite tuning --match-jobs 4
 python3 tests/compare_performance.py
+python3 tests/compare_performance.py --mode rendered --output tests/artifacts/performance_rendered
 ```

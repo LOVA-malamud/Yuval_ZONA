@@ -4,22 +4,22 @@ Branch: `feat/command-and-coordination-overhaul`; original reference: `707a51a` 
 
 ## Completed integration checks
 
-`tests/artifacts/overhaul_battle_parity_fixed/summary.json` passes source validation (90 Godot files, 99 resource paths), matching English/Russian localization (224 keys), nine Python scenario/selection checks, Godot import, the original runtime/navigation/settings/localization/onboarding/polish labs, fixed-step presentation parity, definition extensions, equal-stat difficulty behavior, coordination and session lifecycle regressions.
+`tests/artifacts/overhaul_final_desktop_current/summary.json` passes source validation (90 Godot files, 99 resource paths), matching English/Russian localization (224 keys), nine Python scenario/selection checks, Godot import, the original runtime/navigation/settings/localization/onboarding/polish labs, fixed-step presentation parity, definition extensions, equal-stat difficulty behavior, coordination and session lifecycle regressions.
 
 Coverage includes FIFO resource contention, invalid actor/route/payload, purchase creation failure, cancellation, pause/resume/end/teardown, per-match registry ownership, persistent orders, human spending against AI reservations, Rally bonuses/exclusions/cooldown, temporary Regroup/replacement, alert suppression, spending/damage/tower attribution and the complete playable tutorial progression. Targeted follow-up coverage checks terrain/freed focus targets and actions completed before their tutorial lesson.
 
 | Render/input check | Evidence |
 | --- | --- |
 | Initial complete bilingual matrix | `overhaul_rendered`: all 60 exact-size captures and native input pass |
-| Final rendered matrix | `overhaul_final_desktop`: 60 captures, two cutout captures and rendered 30/60 FPS trace pass |
+| Final rendered matrix | `overhaul_final_desktop_current`: all 82 checks pass, including 60 captures, two cutout captures, native input and the death/projectile trace at 30/60 FPS |
 | Corrected touch layout | `overhaul_touch_targets`: 12 bilingual phone/cutout captures, bounds and 48-pixel button/tab checks pass |
-| Actual native Linux feature input | `overhaul_native_display`: 47/47 checks pass, including commands, focus, difficulty persistence/next-match application and tutorial start/restart/skip |
+| Actual native Linux feature input | `overhaul_native_current`: 47/47 checks pass, including commands, focus, difficulty persistence/next-match application and tutorial start/restart/skip |
 | Asymmetric version-1 compatibility | `overhaul_assignments`: seeds 42/43 with baseline, normal four-worker team and swapped four-worker team; JSON and browser pass |
 | Actual version-3 and old replay views | Baseline-20 and assignment HTML pass Chromium playback, final stop, seek, event jumps, tooltips, responsive layout, old views and technical-failure display |
 
-Native Hyprland resized the window to **922×1030**; the native capture records that actual size. Rendered layout captures use explicit SubViewports at **1280×720, 1280×800, 1920×1080, 1600×720 and 1280×960**, rather than treating requested native window dimensions as actual pixels.
+The native Hyprland capture records its compositor-selected dimensions (an earlier run was **922×1030**); the native capture records that actual size. Rendered layout captures use explicit SubViewports at **1280×720, 1280×800, 1920×1080, 1600×720 and 1280×960**, rather than treating requested native window dimensions as actual pixels.
 
-The final desktop composite initially failed because its native fixture used the wrong class for the system-Back notification constant. Its rendering checks passed; the corrected native/touch runs above supersede that failed input check. The composite’s failed summary remains preserved rather than rewritten as a pass.
+An earlier desktop composite initially failed because its native fixture used the wrong class for the system-Back notification constant. Its rendering checks passed; the corrected native/touch runs above supersede that failed input check. The composite’s failed summary remains preserved rather than rewritten as a pass.
 
 The original three-seed historical reference completed at 761.35 seconds, 1240.67 seconds and one 1800-second timeout. That small sample establishes provenance, not a pacing conclusion. Intermediate feature captures are retained locally but are not the final tuning evidence.
 
