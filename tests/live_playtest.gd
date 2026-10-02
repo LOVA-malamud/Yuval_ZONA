@@ -186,7 +186,7 @@ func _run() -> void:
 	game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
 	await get_tree().process_frame
 	check(get_tree().paused and game.player.controller.touch_index == -1, "Application focus loss pauses and clears held touch input")
-	game.notification(MainLoop.NOTIFICATION_WM_GO_BACK_REQUEST)
+	game.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await get_tree().process_frame
 	check(not get_tree().paused, "System Back resumes paused match")
 	game.hud._restart()
