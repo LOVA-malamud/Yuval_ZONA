@@ -3,6 +3,7 @@ var level: int = 1
 var pad = null
 
 func _ready() -> void:
+	category = &"structure"
 	super._ready()
 	kind = &"tower"
 	body_radius = 28.0
@@ -12,7 +13,7 @@ func _ready() -> void:
 	attack_range = game.balance.tower_range
 	attack_cooldown = game.balance.tower_cooldown
 
-func _physics_process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
 	if not alive:
 		return
 	tick(delta)
@@ -34,6 +35,6 @@ func apply_upgrade() -> void:
 	queue_redraw()
 
 func die() -> void:
-	AudioFeedback.play(&"tower_destroy", global_position)
+	game.play_sound(&"tower_destroy", global_position)
 	game.spawn_effect(global_position, team.color, "rubble")
 	super.die()

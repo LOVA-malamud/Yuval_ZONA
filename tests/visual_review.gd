@@ -9,16 +9,24 @@ func _run() -> void:
 	var dimensions: PackedStringArray = (args[1] if args.size() > 1 else "1280x720").split("x")
 	var locale: String = args[2] if args.size() > 2 else "en"
 	root.get_node("Localization").set_language(locale, false)
-	root.get_node("GameSettings").set_onboarding_enabled(scenario == "guidance", false)
-	root.size = Vector2i(int(dimensions[0]), int(dimensions[1]))
+	root.get_node("GameSettings").set_onboarding_enabled(scenario in ["guidance", "tutorial"], false)
+	var requested_size := Vector2i(int(dimensions[0]), int(dimensions[1]))
+	root.size = requested_size
 	root.content_scale_size = Vector2i(1280,720)
 	root.content_scale_mode = Window.CONTENT_SCALE_MODE_CANVAS_ITEMS
 	root.content_scale_aspect = Window.CONTENT_SCALE_ASPECT_EXPAND
-	var game = load("res://scenes/main/main.tscn").instantiate()
-	root.add_child(game)
-	current_scene = game
+	var capture_viewport := SubViewport.new()
+	capture_viewport.size = requested_size
+	capture_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	root.add_child(capture_viewport)
+	var game = load("res://scenes/main/tutorial.tscn" if scenario == "tutorial" else "res://scenes/main/main.tscn").instantiate()
+	game.force_touch_controls = requested_size == Vector2i(1600, 720) or scenario == "cutout"
+	if scenario == "cutout":
+		game.safe_area_override = Rect2(60, 24, requested_size.x - 100, requested_size.y - 48)
+	capture_viewport.add_child(game)
+	current_scene = capture_viewport
 	await process_frame
-	if scenario in ["battle","king","economy"]:
+	if scenario in ["battle","king","economy","commands","rally"]:
 		game.teams[0].money = 700
 		game.teams[0].wood = 280
 		game.player.position = game.pads[7].position + Vector2(-70,-25)
@@ -36,6 +44,10 @@ func _run() -> void:
 		game.commanders[1].position = Vector2(2120,1440)
 		game.commanders[2].position = Vector2(2450,1400)
 		game.commanders[3].position = Vector2(2480,1510)
+	if scenario == "commands":
+		game.hud._toggle_commands()
+	if scenario == "rally":
+		game.session.execute(MatchCommand.new(MatchCommand.Action.RALLY, game.player.commander_id))
 	if scenario == "king":
 		game.hud.tabs.current_tab = 1
 	if scenario == "economy":
@@ -84,16 +96,16 @@ func _run() -> void:
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	await process_frame
 	RenderingServer.force_draw()
-	var file: String = "res:/" + "/tests/artifacts/" + scenario + "_" + locale + "_" + str(root.size.x) + "x" + str(root.size.y) + ".png"
-	var captured: Image = root.get_texture().get_image()
+	var file: String = "res:/" + "/tests/artifacts/" + scenario + "_" + locale + "_" + str(requested_size.x) + "x" + str(requested_size.y) + ".png"
+	var captured: Image = capture_viewport.get_texture().get_image()
 	var error: Error = captured.save_png(file)
-	if captured.get_size() != root.size:
+	if captured.get_size() != requested_size:
 		push_error("Capture dimensions differ from requested dimensions")
 		error = ERR_INVALID_DATA
 	print("VERIFIED PIXELS ",captured.get_size())
 	print("CAPTURE ", file, " error=", error)
 	# Every visible control must fit inside the viewport.
-	var problems: int = _check_layout(game.hud.controls, root.get_visible_rect())
+	var problems: int = _check_layout(game.hud.controls, capture_viewport.get_visible_rect())
 	print("LAYOUT problems=", problems)
 	root.get_node("AudioFeedback").stop_all()
 	await create_timer(0.1, true).timeout

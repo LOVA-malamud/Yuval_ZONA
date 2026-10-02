@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -71,7 +72,10 @@ def run_script(engine: str, script: str, arguments: list[str], real_time: bool =
     if process.returncode or len(reports) != 1 or any("SCRIPT ERROR:" in line for line in lines):
         print("".join(lines)[-8000:], end="", file=sys.stderr)
         raise SystemExit(f"{script} failed (exit {process.returncode}; {len(reports)} reports).")
-    return json.loads(reports[0])
+    report = json.loads(reports[0])
+    if report.get("failures", 0) or report.get("outcome") == "technical_failure":
+        raise SystemExit(f"{script} reported failure: {report.get('error', report.get('failures'))}")
+    return report
 
 
 def main() -> None:
@@ -85,6 +89,9 @@ def main() -> None:
     parser.add_argument("--limit-seconds", type=float, default=1800.0, help="Simulated match time limit")
     parser.add_argument("--jobs", type=int, default=1, help="Concurrent Godot matches (default: 1)")
     parser.add_argument("--watch", metavar="SCENARIO", help="Show one named scenario in a Godot window using the first seed")
+    parser.add_argument("--sample-seconds", type=int, choices=(1, 5), default=1)
+    parser.add_argument("--no-html", action="store_true", help="Skip embedding large experiment captures into HTML")
+    parser.add_argument("--resume", action="store_true", help="Reuse completed runs from an identical source/config checkpoint")
     args = parser.parse_args()
     if not 0 < args.limit_seconds <= 1800:
         parser.error("--limit-seconds must be between 0 and 1800")
@@ -94,7 +101,25 @@ def main() -> None:
         parser.error("--watch requires --suite matches or all")
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     engine = engine_path(args.godot)
-    output: dict = {"version": 1, "engine": engine, "suite": args.suite, "seeds": args.seeds, "limit_seconds": args.limit_seconds}
+    digest = hashlib.sha256()
+    for directory in ("scripts", "resources", "scenes", "localization"):
+        for path in sorted((ROOT / directory).rglob("*")):
+            if path.is_file() and path.suffix in (".gd", ".tres", ".tscn"):
+                digest.update(str(path.relative_to(ROOT)).encode())
+                digest.update(path.read_bytes())
+    digest.update((ROOT / "tests/engine_match_lab.gd").read_bytes())
+    engine_version = subprocess.check_output([engine, "--version"], text=True).strip()
+    output: dict = {"version": 1, "engine": engine, "engine_version": engine_version, "source_digest": digest.hexdigest(), "suite": args.suite, "seeds": args.seeds, "limit_seconds": args.limit_seconds, "sample_seconds": args.sample_seconds}
+    destination = Path(args.output)
+    if not destination.is_absolute():
+        destination = ROOT / destination
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    previous = None
+    if args.resume and destination.exists():
+        previous = json.loads(destination.read_text())
+        for key in ("source_digest", "engine_version", "seeds", "limit_seconds", "sample_seconds"):
+            if previous.get(key) != output[key]:
+                parser.error(f"Cannot resume: {key} changed")
     if args.suite in {"movement", "all"}:
         movement = run_script(engine, "tests/game_lab.gd", [])
         output["movement"] = movement
@@ -122,10 +147,20 @@ def main() -> None:
                     specs.append((name, assignment, effective, candidate_team, seed))
         if args.watch:
             specs = [spec for spec in specs if spec[0] == args.watch and spec[1] == "normal" and spec[4] == seeds[0]][:1]
+        if previous:
+            remaining = []
+            for spec in specs:
+                name, assignment, config, candidate_team, seed = spec
+                existing = next((r for r in previous.get("matches", []) if r.get("scenario") == name and r.get("assignment") == assignment and r.get("seed") == seed and r.get("outcome") in ("win", "timeout") and r.get("effective_config", {}).get("requested") == config), None)
+                if existing:
+                    matches.append(existing)
+                else:
+                    remaining.append(spec)
+            specs = remaining
         def run_match(spec):
             name, assignment, effective, candidate_team, seed = spec
             try:
-                report = run_script(engine, "tests/engine_match_lab.gd", [str(seed), json.dumps(effective, separators=(",", ":")), str(args.limit_seconds)], True, visible=bool(args.watch), label=f"{name} {assignment}")
+                report = run_script(engine, "tests/engine_match_lab.gd", [str(seed), json.dumps(effective, separators=(",", ":")), str(args.limit_seconds), str(args.sample_seconds), *(["--watch"] if args.watch else [])], True, visible=bool(args.watch), label=f"{name} {assignment}")
             except SystemExit as error:
                 report = {"seed": seed, "outcome": "technical_failure", "error": str(error), "effective_config": effective}
             report.update(scenario=name, assignment=assignment, candidate_team=candidate_team)
@@ -133,6 +168,9 @@ def main() -> None:
         with ThreadPoolExecutor(max_workers=args.jobs) as pool:
             for report in pool.map(run_match, specs):
                 matches.append(report)
+                output["matches"] = matches
+                output["summary"] = summarize(matches)
+                destination.write_text(json.dumps(output, separators=(",", ":")) + "\n")
                 print(f"{report['scenario']} {report['assignment']} seed {report['seed']}: {report.get('outcome')} winner {report.get('winning_team_id', '-')}", flush=True)
         output["matches"] = matches
         output["summary"] = summarize(matches)
@@ -141,15 +179,17 @@ def main() -> None:
     if not destination.is_absolute():
         destination = ROOT / destination
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_text(json.dumps(output, indent=2) + "\n")
+    destination.write_text(json.dumps(output, separators=(",", ":")) + "\n")
     print(f"report: {destination}")
-    if args.suite in {"matches", "all"}:
+    if args.suite in {"matches", "all"} and not args.no_html:
         html_path = Path(args.html) if args.html else destination.with_suffix(".html")
         if not html_path.is_absolute():
             html_path = ROOT / html_path
         html_path.parent.mkdir(parents=True, exist_ok=True)
         html_path.write_text(html_report({"version": 1, "runs": matches, "summary": output["summary"]}))
         print(f"replay: {html_path}")
+    if output.get("movement", {}).get("failures", 0) or any(r.get("outcome") == "technical_failure" for r in output.get("matches", [])):
+        raise SystemExit(1)
 
 
 if __name__ == "__main__":

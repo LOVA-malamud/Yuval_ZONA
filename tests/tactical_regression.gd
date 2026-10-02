@@ -15,7 +15,7 @@ func _run() -> void:
 	root.add_child(game)
 	current_scene = game
 	for entity in get_nodes_in_group("combatants"):
-		entity.remove_from_group("combatants")
+		game.session.unregister_actor(entity)
 	var commander = game.commanders[1]
 	commander.position = Vector2(1200,900)
 	commander.path_goal = Vector2(2050,900)
@@ -32,12 +32,12 @@ func _run() -> void:
 	commander.position = Vector2(1150,650)
 	commander.health = 30
 	for step in range(800):
-		commander._physics_process(0.05)
+		commander.step_gameplay(0.05)
 		if commander.health == commander.max_health:
 			break
 	check(commander.health == commander.max_health,"AI returns from forward grove and resupplies")
 	commander.die()
-	commander._physics_process(12.1)
+	commander.step_gameplay(12.1)
 	check(commander.travel_path.is_empty() and commander.controller.route.is_empty(),"Respawn resets movement and tactical path")
 	var worker = game.WORKER_SCENE.instantiate()
 	worker.configure(game.teams[0],game)
@@ -49,7 +49,7 @@ func _run() -> void:
 	game.entities.add_child(threat)
 	var distance: float = worker.position.distance_to(threat.position)
 	for step in range(10):
-		worker._physics_process(0.05)
+		worker.step_gameplay(0.05)
 	check(worker.position.distance_to(threat.position) > distance,"Worker retreats from a sensed enemy")
 	check(worker.danger_timer > 0,"Worker remembers dangerous grove temporarily")
 	threat.free()
@@ -79,7 +79,7 @@ func _run() -> void:
 	foe.configure(game.teams[1],game,game.unit_data[&"melee"])
 	foe.position = Vector2(1250,1300)
 	game.entities.add_child(foe)
-	tank._physics_process(0.05)
+	tank.step_gameplay(0.05)
 	check(tank.target == tower,"Tank prioritizes fortifications over nearby infantry")
 	tank.position = tower.position+Vector2(-60,0)
 	hp = tower.health
@@ -100,17 +100,20 @@ func _run() -> void:
 			unit.route_index = 3
 			unit.health *= 4.0
 			unit.max_health = unit.health
+			team.combat_count += 1
+			unit.died.connect(game._on_recruit_died)
 			game.entities.add_child(unit)
 			army.append(unit)
 	var terrain_violations: int = 0
-	for step in range(600):
-		game._physics_process(0.05)
+	for idle_commander in game.commanders:
+		if idle_commander.controller.has_method("set_order"):
+			idle_commander.controller.decision_timer = INF
+	for step in range(1800):
+		game.session.step()
 		for unit in army:
-			if is_instance_valid(unit) and unit.alive:
-				unit._physics_process(0.05)
-				if not game.navigation.walkable(unit.position,unit.body_radius-0.1):
-					terrain_violations += 1
-		if step%20 == 0:
+			if is_instance_valid(unit) and unit.alive and not game.navigation.walkable(unit.position, unit.body_radius - 0.1):
+				terrain_violations += 1
+		if step % 60 == 0:
 			await process_frame
 	var survivors: int = 0
 	var overlaps: int = 0

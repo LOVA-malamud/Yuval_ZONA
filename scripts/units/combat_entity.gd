@@ -7,6 +7,9 @@ signal died(entity: CombatEntity)
 
 var team: GameTeam
 var game = null
+var match_id: int = 0
+var owner_commander_id: int = 0
+var rally_buff: float = 0.0
 var max_health: float = 100.0
 var health: float = 100.0
 var damage: float = 10.0
@@ -18,6 +21,8 @@ var detection_range: float = 260.0
 var body_radius: float = 13.0
 var cooldown: float = 0.0
 var alive: bool = true
+var category: StringName = &"army"
+var tactical_role: StringName = &"melee"
 var kind: StringName = &"melee"
 var shot_time: float = 0.0
 var shot_end: Vector2
@@ -31,6 +36,7 @@ const ART = preload("res://scripts/visuals/entity_art.gd")
 
 
 func _ready() -> void:
+	match_id = game.session.register_actor(self)
 	add_to_group("combatants")
 	game.spawn_effect(global_position, team.color, "spawn")
 	queue_redraw()
@@ -41,6 +47,7 @@ func configure(owner_team: GameTeam, manager, data: UnitStats = null) -> void:
 	game = manager
 	if data != null:
 		kind = data.id
+		tactical_role = data.tactical_role
 		max_health = data.max_health
 		damage = data.damage
 		structure_damage_multiplier = data.structure_damage_multiplier
@@ -53,10 +60,11 @@ func configure(owner_team: GameTeam, manager, data: UnitStats = null) -> void:
 
 
 func tick(delta: float) -> void:
-	var fading_feedback: bool = hit_flash > 0.0 or shot_time > 0.0
+	var fading_feedback: bool = hit_flash > 0.0 or shot_time > 0.0 or (rally_buff > 0.0 and rally_buff <= delta)
 	visual_time += delta
+	rally_buff = maxf(0.0, rally_buff - delta)
 	hit_flash = maxf(0.0, hit_flash - delta)
-	cooldown = maxf(0.0, cooldown - delta)
+	cooldown = maxf(0.0, cooldown - delta * (1.2 if rally_buff > 0.0 else 1.0))
 	shot_time = maxf(0.0, shot_time - delta)
 	var was_visible: bool = presentation_visible
 	presentation_visible = _presentation_in_view()
@@ -69,6 +77,8 @@ func tick(delta: float) -> void:
 
 
 func _presentation_in_view() -> bool:
+	if not game.presentation_enabled:
+		return false
 	var canvas: Transform2D = get_canvas_transform()
 	var screen_position: Vector2 = canvas * global_position
 	var bounds: Rect2 = get_viewport_rect()
@@ -80,16 +90,22 @@ func _presentation_in_view() -> bool:
 
 func valid_enemy(candidate) -> bool:
 	return (
-		is_instance_valid(candidate) and candidate.alive and team.is_enemy(candidate.team.team_id)
+		typeof(candidate) == TYPE_OBJECT and is_instance_valid(candidate) and candidate is CombatEntity
+		and candidate.alive and team.is_enemy(candidate.team.team_id)
 	)
+
+func effective_move_speed() -> float:
+	return move_speed * (1.15 if rally_buff > 0.0 else 1.0)
 
 
 func closest_enemy(radius: float) -> CombatEntity:
 	var best: CombatEntity = null
 	var best_distance: float = radius
-	for node in get_tree().get_nodes_in_group("combatants"):
+	for node in game.session.actors.values():
+		if not is_instance_valid(node):
+			continue
 		var candidate := node as CombatEntity
-		if not valid_enemy(candidate):
+		if not is_instance_valid(candidate) or not valid_enemy(candidate):
 			continue
 		var distance: float = edge_distance(candidate)
 		if distance <= best_distance and game.navigation.clear_line(global_position, candidate.global_position):
@@ -114,24 +130,26 @@ func attack(target: CombatEntity) -> void:
 	shot_end = target.global_position
 	queue_redraw()
 	var sound: StringName = &"melee"
-	if kind == &"ranged":
+	if tactical_role == &"ranged":
 		sound = &"ranged"
-	elif kind == &"tank":
+	elif tactical_role == &"tank":
 		sound = &"tank"
 		game.spawn_effect(target.global_position, Color("e6c28b"), "impact")
 	elif kind in [&"tower", &"king"]:
 		sound = &"tower_fire"
-	AudioFeedback.play(sound, global_position)
-	if kind == &"ranged":
-		game.launch_projectile(team.team_id, global_position, target.global_position, damage, structure_damage_multiplier)
+	game.play_sound(sound, global_position)
+	if tactical_role == &"ranged":
+		game.launch_projectile(team.team_id, global_position, target.global_position, damage, structure_damage_multiplier, owner_commander_id)
 	else:
 		var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
-		target.take_damage(dealt, team.team_id)
+		target.take_damage(dealt, team.team_id, owner_commander_id)
 
 
-func take_damage(amount: float, attacker_team_id: int) -> void:
+func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0) -> void:
 	if not alive or not team.is_enemy(attacker_team_id) or amount <= 0.0:
 		return
+	if kind == &"king" and game.coordination != null:
+		game.coordination.king_damage(source_commander_id, minf(health, amount))
 	hit_flash = 0.16
 	health = maxf(0.0, health - amount)
 	if health <= 0.0:
@@ -142,6 +160,9 @@ func take_damage(amount: float, attacker_team_id: int) -> void:
 func die() -> void:
 	game.spawn_effect(global_position, team.color, "death")
 	alive = false
+	if game.coordination != null:
+		game.coordination.actor_died(self)
+	game.session.publish({"type": "death", "team": team.team_id, "kind": String(kind), "entity_id": match_id, "position": [position.x, position.y], "commander_id": owner_commander_id})
 	remove_from_group("combatants")
 	died.emit(self)
 	queue_free()
@@ -166,7 +187,7 @@ func travel_toward(destination: Vector2, delta: float) -> void:
 		waypoint = travel_path[0]
 	var heading: Vector2 = global_position.direction_to(waypoint)
 	var direction: Vector2 = (heading + game.separation_for(self)).limit_length(1.0)
-	var motion: Vector2 = direction * minf(move_speed * delta, global_position.distance_to(waypoint))
+	var motion: Vector2 = direction * minf(effective_move_speed() * delta, global_position.distance_to(waypoint))
 	var before: Vector2 = global_position
 	global_position = game.navigation.move(global_position, motion, body_radius)
 	if before.distance_to(global_position) < move_speed * delta * 0.1 and before.distance_to(destination) > 30.0:
@@ -178,12 +199,15 @@ func travel_toward(destination: Vector2, delta: float) -> void:
 func _draw() -> void:
 	if team == null or not alive:
 		return
+	if rally_buff > 0.0:
+		draw_arc(Vector2.ZERO, body_radius + 7.0, 0.0, TAU, 24, Color("edce8e"), 2.0, true)
 	var tint: Color = team.color.lerp(Color.WHITE, hit_flash / 0.16 * 0.7)
 	# Small reaction in the silhouette without shaking the camera or hiding hits.
 	var recoil := Vector2.ZERO
-	if shot_time > 0 and kind in [&"melee", &"tank", &"player"]:
-		recoil = global_position.direction_to(shot_end) * sin(shot_time / 0.22 * PI) * (3.0 if kind == &"tank" else 2.0)
-	ART.paint(self, kind, tint, visual_time * 6.0, recoil)
+	var art_kind: StringName = tactical_role if category == &"army" else kind
+	if shot_time > 0 and art_kind in [&"melee", &"tank", &"player"]:
+		recoil = global_position.direction_to(shot_end) * sin(shot_time / 0.22 * PI) * (3.0 if art_kind == &"tank" else 2.0)
+	ART.paint(self, art_kind, tint, visual_time * 6.0, recoil)
 	draw_set_transform(Vector2.ZERO)
 	# Team emblems remain distinguishable in grayscale: Azure disk / Ember chevron.
 	var badge := Vector2(0, 2) if kind not in [&"king", &"tower"] else Vector2(0, -12)
@@ -219,7 +243,7 @@ func _draw() -> void:
 		draw_rect(Rect2(-width/2-1, bar_y-1, width+2, 6), ART.INK)
 		draw_rect(Rect2(-width/2, bar_y, width, 4), Color("513d3b"))
 		draw_rect(Rect2(-width/2, bar_y, width * health / max_health, 4), tint)
-	if shot_time > 0.0 and kind != &"ranged":
+	if shot_time > 0.0 and tactical_role != &"ranged":
 		var end: Vector2 = to_local(shot_end)
 		var progress: float = 1.0 - shot_time / 0.22
 		if kind in [&"tower", &"king"]:

@@ -1,0 +1,23 @@
+[gd_resource type="Resource" script_class="ContentCatalog" load_steps=15 format=3]
+
+[ext_resource type="Script" path="res://scripts/core/content_catalog.gd" id="1"]
+[ext_resource type="Resource" path="res://resources/units/melee.tres" id="2"]
+[ext_resource type="Resource" path="res://resources/units/ranged.tres" id="3"]
+[ext_resource type="Resource" path="res://resources/units/tank.tres" id="4"]
+[ext_resource type="Resource" path="res://resources/upgrades/king_health.tres" id="5"]
+[ext_resource type="Resource" path="res://resources/upgrades/king_damage.tres" id="6"]
+[ext_resource type="Resource" path="res://resources/upgrades/king_attack_speed.tres" id="7"]
+[ext_resource type="Resource" path="res://resources/upgrades/king_range.tres" id="8"]
+[ext_resource type="Resource" path="res://resources/upgrades/worker_speed.tres" id="9"]
+[ext_resource type="Resource" path="res://resources/upgrades/worker_capacity.tres" id="10"]
+[ext_resource type="Resource" path="res://resources/upgrades/worker_gather.tres" id="11"]
+[ext_resource type="Resource" path="res://resources/upgrades/income.tres" id="12"]
+[ext_resource type="PackedScene" path="res://scenes/units/combat_unit.tscn" id="13"]
+[ext_resource type="PackedScene" path="res://scenes/workers/worker.tscn" id="14"]
+
+[resource]
+script = ExtResource("1")
+units = Array[Resource]([ExtResource("2"), ExtResource("3"), ExtResource("4")])
+upgrades = Array[Resource]([ExtResource("5"), ExtResource("6"), ExtResource("7"), ExtResource("8"), ExtResource("9"), ExtResource("10"), ExtResource("11"), ExtResource("12")])
+army_scene = ExtResource("13")
+worker_scene = ExtResource("14")

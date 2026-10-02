@@ -62,7 +62,7 @@ func _run() -> void:
 	game.player.take_damage(9999, 2)
 	hud.notify("RECRUITED", ["UNIT_WORKER"])
 	check(hud.notice_key == "KING_DANGER", "Commander loss and purchases cannot replace active King danger")
-	game.player._physics_process(12.1)
+	game.player.step_gameplay(12.1)
 	check(game.player.alive and hud.notice_key == "KING_DANGER", "Respawn restores commander without erasing critical objective feedback")
 	hud.notice_time = 0
 	hud.notify("COMMANDER_RETURNED")

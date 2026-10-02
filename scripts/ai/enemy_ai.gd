@@ -15,12 +15,24 @@ var build_goal = null
 var route_id: int = 1
 var route := PackedVector2Array()
 var route_index: int = 1
+var order: StringName = &"auto"
+var planned_purchase: StringName = &""
+var reserved_gold: int = 0
+var reserved_wood: int = 0
 var roster: Array[StringName] = [&"tank", &"melee", &"ranged", &"melee", &"ranged"]
 
 func _ready() -> void:
 	rng.seed = game.strategy_seed * 97 + actor.commander_id * 13
+	roster.clear()
+	for role in [&"tank", &"melee", &"ranged", &"melee", &"ranged"]:
+		for id in game.unit_data:
+			if game.unit_data[id].tactical_role == role:
+				roster.append(id)
+				break
 
-func _process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
+	if game.tutorial_mode or roster.is_empty():
+		return
 	if game.match_finished or not actor.alive:
 		return
 	decision_timer -= delta
@@ -29,6 +41,11 @@ func _process(delta: float) -> void:
 	decision_timer = game.balance.aggressive_decision_seconds if personality == "aggressive" else game.balance.economic_decision_seconds
 	decision_timer += rng.randf_range(-0.7, 0.7)
 	decision_count += 1
+	planned_purchase = &""
+	if game.rules.difficulty == &"easy":
+		decision_timer *= 1.65
+	elif game.rules.difficulty == &"hard":
+		decision_timer *= 0.8
 	if is_instance_valid(build_goal) and build_goal.occupied():
 		build_goal = null
 	var reserve: int = game.balance.ally_money_reserve if personality == "ally" else 20
@@ -40,7 +57,7 @@ func _process(delta: float) -> void:
 		# Reinforce established pressure rather than abandoning it on a fixed rotation.
 		var pressure: Array[float] = [0.0, 0.0, 0.0]
 		for unit in game.entities.get_children():
-			if unit is CombatEntity and unit.alive and unit.team == team and unit.kind in [&"melee", &"ranged", &"tank"]:
+			if unit is CombatEntity and unit.alive and unit.team == team and unit.category == &"army":
 				pressure[unit.route_id] += 1.0 + minf(1.0,unit.position.distance_to(team.base_position)/3800.0)
 		var best: int = 0
 		for lane in range(1,3):
@@ -50,9 +67,19 @@ func _process(delta: float) -> void:
 			route_id = best
 		# A visible threat biases the next group toward its approach lane.
 		if actor.valid_enemy(base_threat):
-			route_id = 0 if base_threat.position.y < 1050 else (2 if base_threat.position.y > 1600 else 1)
-	if personality != "aggressive" and decision_count % 4 == 1 and team.worker_count >= 3 and team.wood >= game.balance.tower_wood + wood_reserve:
+			route_id = game.coordination.closest_lane(base_threat.position)
+	if order == &"auto" and personality != "aggressive" and decision_count % 4 == 1 and team.worker_count >= 3 and team.wood >= game.balance.tower_wood + wood_reserve:
 		build_goal = _choose_pad()
+	if order in [&"north", &"center", &"south"]:
+		route_id = [&"north", &"center", &"south"].find(order)
+	elif game.rules.difficulty == &"hard" and order == &"auto" and not actor.valid_enemy(base_threat):
+		route_id = (int(game.match_seconds / 90.0) + team.team_id + game.strategy_seed % 3) % 3
+	reserved_gold = game.balance.tower_money if build_goal != null else 0
+	reserved_wood = game.balance.tower_wood if build_goal != null else 0
+	if build_goal != null and not team.can_afford(reserved_gold, reserved_wood):
+		build_goal = null
+		reserved_gold = 0
+		reserved_wood = 0
 	# Both controllers respect one teammate's announced construction budget.
 	var construction_pending: bool = false
 	for commander in game.commanders:
@@ -63,7 +90,7 @@ func _process(delta: float) -> void:
 	if team.money < reserve + 50:
 		return
 	if team.worker_count < (5 if personality == "economic" else 4) and (personality != "aggressive" or team.worker_count < 2):
-		game.purchase(team.team_id, &"worker", false)
+		_recruit(&"worker")
 	elif build_goal != null and team.can_afford(reserve, game.balance.tower_wood + wood_reserve) and game.nearest_pad(actor) == build_goal:
 		game.build_tower(actor, build_goal)
 		build_goal = null
@@ -78,7 +105,7 @@ func _process(delta: float) -> void:
 		for recruit in range(group_size):
 			var id: StringName = roster[(decision_count + actor.commander_id + recruit) % roster.size()]
 			if team.money >= reserve + int(game.unit_data[id].money_cost):
-				game.purchase(team.team_id, id, false, route_id)
+				_recruit(id)
 	if decision_count % 4 == 0:
 		# Grow the field economy before repeatedly fortifying an untouched King.
 		var order: Array = [7, 5, 6, 4, 7, 0, 1, 2, 3]
@@ -86,7 +113,7 @@ func _process(delta: float) -> void:
 		var level: int = team.upgrade_level(definition.id)
 		var fortification_needed: bool = definition.category != "king" or level < 2
 		if fortification_needed and team.wood >= definition.cost(level) + wood_reserve + game.balance.tower_wood:
-			game.purchase_upgrade(team.team_id, definition.id, false)
+			game.session.execute(MatchCommand.new(MatchCommand.Action.UPGRADE, actor.commander_id, {"id": definition.id}))
 
 func _choose_pad():
 	var best = null
@@ -101,6 +128,8 @@ func _choose_pad():
 	return best
 
 func drive(body, delta: float) -> void:
+	if game.tutorial_mode:
+		return
 	scan_timer -= delta
 	if scan_timer <= 0.0:
 		scan_timer = 0.45
@@ -108,36 +137,50 @@ func drive(body, delta: float) -> void:
 		base_threat = null
 		if is_instance_valid(team.king):
 			base_threat = team.king.closest_enemy(600.0)
+	if game.rules.difficulty != &"easy" and body.alive and body.rally_cooldown <= 0.0:
+		var friends := 0
+		for unit in game.entities.get_children():
+			if unit is CombatEntity and unit.category == &"army" and unit.team == team and unit.position.distance_to(body.position) <= 300.0:
+				friends += 1
+		if friends >= 4 and (body.valid_enemy(target) or (game.rules.difficulty == &"hard" and friends >= 6)):
+			game.session.execute(MatchCommand.new(MatchCommand.Action.RALLY, actor.commander_id))
 	if body.health < body.max_health * 0.3:
 		body.tactical_status = "STATUS_RESUPPLY"
 		route.clear()
-		body.travel_toward(team.base_position + Vector2(0, 110), delta)
+		_intent({"goal": team.base_position + Vector2(0, 110)}, delta)
 		if body.position.distance_to(team.base_position) < 180:
-			body.interact()
+			_intent({"interact": true}, delta)
 	elif body.valid_enemy(target):
 		body.tactical_status = "STATUS_ENGAGING"
 		if body.edge_distance(target) <= body.attack_range:
-			body.attack(target)
+			_intent({"attack": true, "target": target}, delta)
 		else:
-			body.travel_toward(target.global_position, delta)
+			_intent({"goal": target.global_position}, delta)
 	elif body.valid_enemy(base_threat):
 		body.tactical_status = "STATUS_DEFENDING"
-		body.travel_toward(base_threat.position, delta)
+		_intent({"goal": base_threat.position}, delta)
+	elif order in [&"defend", &"escort"]:
+		var anchor: Vector2 = team.base_position + Vector2(100.0 if team.team_id == 1 else -100.0, -100.0)
+		if order == &"escort" and game.player.alive:
+			anchor = game.player.position + Vector2(-70.0, -55.0)
+		body.tactical_status = "STATUS_DEFENDING" if order == &"defend" or not game.player.alive else "STATUS_ESCORTING"
+		if body.position.distance_to(anchor) > 65.0:
+			_intent({"goal": anchor}, delta)
 	elif is_instance_valid(build_goal) and not build_goal.occupied():
 		body.tactical_status = "STATUS_BUILDING"
-		body.travel_toward(build_goal.position, delta)
+		_intent({"goal": build_goal.position}, delta)
 		var reserve: int = game.balance.ally_money_reserve if personality == "ally" else 0
 		var wood_reserve: int = game.balance.ally_wood_reserve if personality == "ally" else 0
 		if team.can_afford(game.balance.tower_money + reserve, game.balance.tower_wood + wood_reserve) and game.build_tower(actor, build_goal):
 			build_goal = null
 	else:
-		var defend: bool = personality != "aggressive" and fmod(game.match_seconds + actor.commander_id * 7.0, 100.0) < 52.0
+		var defend: bool = order == &"auto" and personality != "aggressive" and fmod(game.match_seconds + actor.commander_id * 7.0, 100.0) < 52.0
 		body.tactical_status = "STATUS_GUARDING" if defend else ["STATUS_NORTH", "STATUS_CENTER", "STATUS_SOUTH"][route_id]
 		if defend:
 			var facing: float = 1.0 if team.base_position.x < game.MAP_SIZE.x * 0.5 else -1.0
 			var destination: Vector2 = team.base_position + Vector2(facing * 650, sin(game.match_seconds * 0.04 + actor.commander_id) * 380)
 			if body.position.distance_to(destination) > 40.0:
-				body.travel_toward(destination, delta)
+				_intent({"goal": destination}, delta)
 			route = PackedVector2Array()
 		else:
 			if route.is_empty():
@@ -146,14 +189,33 @@ func drive(body, delta: float) -> void:
 			while route_index < route.size() - 1 and body.position.distance_to(route[route_index]) < 65:
 				route_index += 1
 				# March with the army instead of outrunning it at full commander speed.
-			var normal_speed: float = body.move_speed
-			body.move_speed = minf(normal_speed, 100.0)
-			body.travel_toward(route[route_index], delta)
-			body.move_speed = normal_speed
+			_intent({"goal": route[route_index], "speed_limit": 100.0}, delta)
 
 func reset_orders() -> void:
 	target = null
 	base_threat = null
 	route.clear()
 	build_goal = null
+	reserved_gold = 0
+	reserved_wood = 0
+	planned_purchase = &""
 	scan_timer = 0.0
+
+func set_order(value: StringName) -> void:
+	order = value
+	route.clear()
+	build_goal = null
+	reserved_gold = 0
+	reserved_wood = 0
+	planned_purchase = &""
+	decision_timer = minf(decision_timer, 0.1)
+	if order in [&"north", &"center", &"south"]:
+		route_id = [&"north", &"center", &"south"].find(order)
+
+func _recruit(id: StringName) -> bool:
+	planned_purchase = id
+	return game.session.execute(MatchCommand.new(MatchCommand.Action.RECRUIT, actor.commander_id, {"id": id, "route": route_id})).success
+
+func _intent(payload: Dictionary, delta: float) -> void:
+	payload["delta"] = delta
+	game.session.execute(MatchCommand.new(MatchCommand.Action.INPUT, actor.commander_id, payload))

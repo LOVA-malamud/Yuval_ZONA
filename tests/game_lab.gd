@@ -21,11 +21,12 @@ func _check(ok: bool, name: String) -> void:
 
 func _step(frames: int) -> void:
 	for _frame in range(frames):
-		game.player._physics_process(DT)
+		game.player.step_gameplay(DT)
 
 
 func _run() -> void:
 	game = load("res://scenes/main/main.tscn").instantiate()
+	game.presentation_enabled = false
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
 	current_scene = game
@@ -33,7 +34,7 @@ func _run() -> void:
 	var control = actor.controller
 	for entity in get_nodes_in_group("combatants"):
 		if entity != actor:
-			entity.remove_from_group("combatants")
+			game.session.unregister_actor(entity)
 
 	actor.position = Vector2(900, 1300)
 	control.set_scripted_command(Vector2.RIGHT, false)
@@ -85,9 +86,9 @@ func _run() -> void:
 	_check(control.touch_index == -1, "right-side touch leaves movement free for UI")
 	touch.pressed = true
 	control._unhandled_input(touch)
-	game.hud._toggle_pause()
+	game.session.pause()
 	_check(control.touch_index == -1 and control.touch_direction == Vector2.ZERO, "pause clears held movement")
-	game.hud._toggle_pause()
+	game.session.resume()
 
 	var foe = game.UNIT_SCENE.instantiate()
 	foe.configure(game.teams[1], game, game.unit_data[&"tank"])
@@ -142,7 +143,7 @@ func _run() -> void:
 		_step(1)
 		for projectile in get_nodes_in_group("projectiles"):
 			if not projectile.is_queued_for_deletion():
-				projectile._physics_process(DT)
+				projectile.step_gameplay(DT)
 	metrics["ranged_dodge_damage"] = snappedf(hp_before - actor.health, 0.01)
 	_check(is_equal_approx(actor.health, hp_before), "lateral movement evades aimed ranged shot")
 	actor.position = Vector2(900, 1300)
@@ -154,7 +155,7 @@ func _run() -> void:
 		_step(1)
 		for projectile in get_nodes_in_group("projectiles"):
 			if not projectile.is_queued_for_deletion():
-				projectile._physics_process(DT)
+				projectile.step_gameplay(DT)
 	metrics["stationary_ranged_damage"] = snappedf(hp_before - actor.health, 0.01)
 	_check(actor.health < hp_before, "stationary commander is hit by ranged shot")
 	actor.position = actor.team.base_position
@@ -168,5 +169,9 @@ func _run() -> void:
 
 	var report := {"suite": "movement", "checks": checks, "failures": failures, "metrics": metrics}
 	print("LAB_REPORT ", JSON.stringify(report))
+	game.free()
+	await physics_frame
+	await physics_frame
 	root.get_node("AudioFeedback").stop_all()
+	await create_timer(0.1).timeout
 	quit(1 if failures > 0 else 0)

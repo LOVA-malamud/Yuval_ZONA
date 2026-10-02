@@ -26,6 +26,9 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var t: float = clampf(age / duration, 0, 1)
 	var color := Color(tint, 1.0 - t)
+	if effect == "rally":
+		draw_arc(Vector2.ZERO, 300.0 * t, 0.0, TAU, 48, color, 3.0, true)
+		return
 	if effect == "deposit":
 		var p := Vector2(0, -20 - t * 35)
 		draw_colored_polygon(PackedVector2Array([p+Vector2(0,-6),p+Vector2(5,0),p+Vector2(0,6),p+Vector2(-5,0)]), color)

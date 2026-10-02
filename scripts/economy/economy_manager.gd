@@ -5,7 +5,7 @@ var teams: Array[GameTeam] = []
 var elapsed: float = 0.0
 
 
-func _process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
 	elapsed += delta
 	while elapsed >= 1.0:
 		elapsed -= 1.0

@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "scenarios": {
+    "baseline": {},
+    "wait6_speed1.0_tower432": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 6,
+          "army_speed_multiplier": 1.0
+        },
+        "balance": {
+          "tower_health": 432
+        }
+      }
+    },
+    "wait6_speed1.15_tower480": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 6,
+          "army_speed_multiplier": 1.15
+        },
+        "balance": {
+          "tower_health": 480
+        }
+      }
+    },
+    "wait6_speed1.15_tower432": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 6,
+          "army_speed_multiplier": 1.15
+        },
+        "balance": {
+          "tower_health": 432
+        }
+      }
+    },
+    "wait3_speed1.0_tower480": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 3,
+          "army_speed_multiplier": 1.0
+        },
+        "balance": {
+          "tower_health": 480
+        }
+      }
+    },
+    "wait3_speed1.0_tower432": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 3,
+          "army_speed_multiplier": 1.0
+        },
+        "balance": {
+          "tower_health": 432
+        }
+      }
+    },
+    "wait3_speed1.15_tower480": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 3,
+          "army_speed_multiplier": 1.15
+        },
+        "balance": {
+          "tower_health": 480
+        }
+      }
+    },
+    "wait3_speed1.15_tower432": {
+      "shared": {
+        "rules": {
+          "rally_wait_seconds": 3,
+          "army_speed_multiplier": 1.15
+        },
+        "balance": {
+          "tower_health": 432
+        }
+      }
+    }
+  }
+}

@@ -83,7 +83,7 @@ func _run() -> void:
 	var guide = hud.help_panel
 	await process_frame
 	check(paused and is_instance_valid(guide), "Clicking How to play opens the guide and pauses gameplay")
-	check(guide.TOPICS.size() == 6 and guide.guidance_toggle.button_pressed, "Guide exposes all six topics and current preference")
+	check(guide.TOPICS.size() == 7 and guide.guidance_toggle.button_pressed, "Guide exposes coordination and current preference")
 	await _click(guide.guidance_toggle)
 	check(not settings.onboarding_enabled and FileAccess.file_exists(TEST_PATH), "Dismissing guidance writes only the isolated preference file")
 	settings.set_onboarding_enabled(true, false)
@@ -92,7 +92,7 @@ func _run() -> void:
 	guide.select_topic(-1)
 	check(guide.topic_index == 0 and guide.previous_button.disabled, "First page disables previous navigation")
 	guide.select_topic(999)
-	check(guide.topic_index == 5 and guide.next_button.disabled, "Last page disables next navigation")
+	check(guide.topic_index == 6 and guide.next_button.disabled, "Last page disables next navigation")
 	paused = true
 	for locale in ["en", "ru"]:
 		localization.set_language(locale, false)
@@ -111,7 +111,7 @@ func _run() -> void:
 				check(picture.get_size() == root.size and picture.save_png(destination) == OK, "Guide screenshot " + destination)
 		check(complete, "All guide topics translate in " + locale)
 		check(fits, "All guide topics fit the reference canvas in " + locale + " at " + str(root.size))
-	check(paused and guide.topic_title.text == tr("HELP_MAP_TITLE"), "Live language switching preserves pause and the selected topic")
+	check(paused and guide.topic_title.text == tr("HELP_COORDINATION_TITLE"), "Live language switching preserves pause and the selected topic")
 	var escape := InputEventAction.new()
 	escape.action = "pause_match"
 	escape.pressed = true

@@ -3,7 +3,7 @@ extends Control
 ## This panel never changes match state and never advances gameplay itself.
 signal closed
 
-const TOPICS := ["CONTROLS", "ARMY", "RESOURCES", "TOWERS", "UPGRADES", "MAP"]
+const TOPICS := ["CONTROLS", "ARMY", "RESOURCES", "TOWERS", "UPGRADES", "MAP", "COORDINATION"]
 
 var game = null
 var topic_index: int = 0

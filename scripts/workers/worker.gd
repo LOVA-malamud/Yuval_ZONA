@@ -16,6 +16,7 @@ var deposit_flash: float = 0.0
 
 
 func _ready() -> void:
+	category = &"worker"
 	super._ready()
 	kind = &"worker"
 	body_radius = 9.0
@@ -23,7 +24,7 @@ func _ready() -> void:
 	health = max_health
 
 
-func _physics_process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
 	if not alive:
 		return
 	tick(delta)
@@ -70,10 +71,12 @@ func _physics_process(delta: float) -> void:
 		State.RETURN:
 			if global_position.distance_to(team.base_position) <= 70.0:
 				team.add_resources(carried, carried)
+				if game.coordination != null:
+					game.coordination.deposit(team.team_id, carried)
 				deposit_flash = 0.6
 				game.spawn_effect(position, Color("dfbe73"), "deposit")
 				if team == game.player.team:
-					AudioFeedback.play(&"deposit", global_position)
+					game.play_sound(&"deposit", global_position)
 				carried = 0
 				gather_progress = 0.0
 				state = State.FIND_TREE
@@ -84,14 +87,14 @@ func _physics_process(delta: float) -> void:
 func _find_tree() -> void:
 	var best_distance: float = INF
 	tree = null
-	for node in get_tree().get_nodes_in_group("trees"):
+	for node in game.get_node("Trees").get_children():
 		var candidate := node as TreeResource
 		if not candidate.available() or (danger_timer > 0 and candidate.position.distance_to(danger_point) < 340):
 			continue
 		# Prefer safe, short trips near this team's storage, even after respawning.
 		var distance: float = team.base_position.distance_to(candidate.global_position)
-		for worker in get_tree().get_nodes_in_group("combatants"):
-			if worker != self and worker.kind == &"worker" and worker.tree == candidate:
+		for worker in game.session.actors.values():
+			if is_instance_valid(worker) and worker.alive and worker != self and worker.kind == &"worker" and worker.tree == candidate:
 				distance += 100.0
 		if distance < best_distance:
 			best_distance = distance

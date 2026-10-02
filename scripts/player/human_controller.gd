@@ -12,6 +12,7 @@ var scripted_direction := Vector2.ZERO
 var scripted_attack: bool = false
 var scripted_interact: bool = false
 var target: CombatEntity
+var focus_target: CombatEntity
 
 
 func set_scripted_command(direction: Vector2, attack: bool = true, interact: bool = false) -> void:
@@ -32,18 +33,11 @@ func drive(actor, delta: float) -> void:
 	var direction: Vector2 = scripted_direction if scripted else Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	if not scripted and touch_index >= 0:
 		direction = touch_direction
-	actor.global_position = actor.game.navigation.move(actor.global_position, direction * actor.move_speed * delta, actor.body_radius)
 	var attacking: bool = scripted_attack if scripted else (Input.is_action_pressed("attack") or touch_index >= 0)
-	if attacking:
-		if not actor.valid_enemy(target) or actor.edge_distance(target) > actor.attack_range or not actor.game.navigation.clear_line(actor.global_position, target.global_position):
-			target = actor.closest_enemy(actor.attack_range)
-		if target != null:
-			actor.attack(target)
-	else:
-		target = null
-	if scripted_interact or (not scripted and Input.is_action_just_pressed("interact")):
-		actor.interact()
-		scripted_interact = false
+	if not actor.valid_enemy(focus_target) or actor.edge_distance(focus_target) > actor.detection_range or not actor.game.navigation.clear_line(actor.position, focus_target.position):
+		focus_target = null
+	actor.game.session.execute(MatchCommand.new(MatchCommand.Action.INPUT, actor.commander_id, {"direction": direction, "attack": attacking, "interact": scripted_interact or (not scripted and Input.is_action_just_pressed("interact")), "target": focus_target, "delta": delta}))
+	scripted_interact = false
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -53,6 +47,22 @@ func _unhandled_input(event: InputEvent) -> void:
 		touch_index = event.index
 		touch_origin = event.position
 		touch_direction = Vector2.ZERO
+	elif (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT) or (event is InputEventScreenTouch and event.pressed):
+		_select_target(event.position)
+
+func _select_target(screen_position: Vector2) -> void:
+	var actor = get_parent()
+	var point: Vector2 = actor.get_canvas_transform().affine_inverse() * screen_position
+	var best: CombatEntity = null
+	var nearest := 45.0
+	for candidate in actor.game.session.actors.values():
+		if not actor.valid_enemy(candidate) or actor.edge_distance(candidate) > actor.detection_range or not actor.game.navigation.clear_line(actor.position, candidate.position):
+			continue
+		var distance: float = candidate.position.distance_to(point)
+		if distance < nearest:
+			nearest = distance
+			best = candidate
+	focus_target = best
 
 
 func _input(event: InputEvent) -> void:
@@ -68,6 +78,7 @@ func reset_touch() -> void:
 	touch_index = -1
 	touch_direction = Vector2.ZERO
 	target = null
+	focus_target = null
 
 
 func _notification(what: int) -> void:

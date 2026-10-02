@@ -11,6 +11,7 @@ var master_volume: float = DEFAULT_MASTER
 var sfx_volume: float = DEFAULT_SFX
 var fullscreen: bool = false
 var onboarding_enabled: bool = true
+var difficulty: StringName = &"standard"
 var last_save_error: Error = OK
 
 
@@ -28,6 +29,8 @@ func load_settings(path: String = "") -> void:
 	sfx_volume = _volume(config.get_value("audio", "sfx", DEFAULT_SFX), DEFAULT_SFX)
 	fullscreen = _boolean(config.get_value("display", "fullscreen", false), false)
 	onboarding_enabled = _boolean(config.get_value("interface", "onboarding", true), true)
+	var saved: String = str(config.get_value("gameplay", "difficulty", "standard"))
+	difficulty = StringName(saved) if saved in ["easy", "standard", "hard"] else &"standard"
 	_apply_audio()
 	_apply_display()
 	settings_changed.emit()
@@ -99,7 +102,12 @@ func _changed(persist: bool) -> Error:
 	return save() if persist else OK
 
 
+func set_difficulty(value: StringName) -> Error:
+	difficulty = value if value in [&"easy", &"standard", &"hard"] else &"standard"
+	return _changed(true)
+
 func reset_defaults() -> Error:
+	difficulty = &"standard"
 	master_volume = DEFAULT_MASTER
 	sfx_volume = DEFAULT_SFX
 	fullscreen = false
@@ -115,6 +123,7 @@ func save(path: String = "") -> Error:
 	var config := ConfigFile.new()
 	if config.load(destination) != OK:
 		config.clear()
+	config.set_value("gameplay", "difficulty", String(difficulty))
 	config.set_value("audio", "master", master_volume)
 	config.set_value("audio", "sfx", sfx_volume)
 	config.set_value("display", "fullscreen", fullscreen)

@@ -29,11 +29,11 @@ func _draw() -> void:
 			for point in lane:
 				points.append(point * factor)
 			lane_points.append(points)
-	for lane_index in range(3):
+	for lane_index in range(game.navigation.lanes.size()):
 		draw_polyline(lane_points[lane_index], Color("ead59d") if lane_index == game.selected_route else Color("837c5d"), 4 if lane_index == game.selected_route and game.route_highlight > 0 else 2, true)
-	for obstacle in RouteMap.OBSTACLES:
+	for obstacle in game.navigation.obstacles:
 		draw_rect(Rect2(obstacle.position * factor, obstacle.size * factor), Color("112f2c"))
-	for tree in get_tree().get_nodes_in_group("trees"):
+	for tree in game.get_node("Trees").get_children():
 		if tree.available():
 			draw_circle(tree.position * factor, 1.7, Color("65a774"))
 	# The footprint is behind strategic markers so it cannot obscure commanders.
@@ -45,7 +45,7 @@ func _draw() -> void:
 		draw_rect(clipped_view, Color(1, 1, 1, 0.035))
 		draw_rect(clipped_view, Color(1, 1, 1, 0.42), false, 1)
 	var clusters: Dictionary = {}
-	for entity in get_tree().get_nodes_in_group("combatants"):
+	for entity in game.session.actors.values():
 		if entity.kind in [&"king", &"player", &"tower", &"worker"]:
 			continue
 		var cell := Vector2i((entity.position / 160).floor())
@@ -84,6 +84,12 @@ func _draw() -> void:
 		draw_rect(Rect2(p + Vector2(-4, 2), Vector2(8, 3)), team.color)
 		if is_instance_valid(team.king) and team.king.danger_remaining > 0:
 			draw_arc(p, 10 + sin(game.match_seconds * 5), 0, TAU, 24, Color("ffdf97"), 2, true)
+	for alert in game.coordination.alerts:
+		if alert.team == game.player.team.team_id and game.match_seconds - alert.t < 10.0:
+			var point := Vector2(alert.position[0], alert.position[1]) * factor
+			draw_arc(point, 9.0, 0.0, TAU, 20, Color("ffdf97"), 2.0, true)
+	if game.tutorial != null and not game.match_finished:
+		draw_circle(game.tutorial.marker * factor, 6.0, Color.WHITE)
 	draw_rect(Rect2(Vector2.ZERO,size),Color("60766b"),false,1)
 
 func _team_marker(point: Vector2, radius: float, team_id: int, tint: Color) -> void:

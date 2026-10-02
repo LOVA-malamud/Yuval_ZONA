@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"tank"
+tactical_role = &"tank"
 display_name = "UNIT_TANK"
 money_cost = 115
 max_health = 400.0

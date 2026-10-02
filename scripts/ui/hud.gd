@@ -43,7 +43,12 @@ var guidance_text: Label
 var shop_state: Array = []
 var notice_priority: int = 0
 var mobile_interact_button: Button
+var command_panel: PanelContainer
+var rally_button: Button
+var regroup_button: Button
+var difficulty_selector: OptionButton
 var touch_stick: Control
+var purchase_feedback: Dictionary = {}
 const ROLE_KEYS := {&"worker": "ROLE_WORKER", &"melee": "ROLE_MELEE", &"ranged": "ROLE_RANGED", &"tank": "ROLE_TANK"}
 
 
@@ -56,6 +61,10 @@ func setup(manager, owner_team: GameTeam) -> void:
 	previous_wallet = Vector2i(team.money, team.wood)
 	team.resources_changed.connect(_resources_changed)
 	GameSettings.settings_changed.connect(_update_guidance)
+	game.session.match_event.connect(_match_event)
+	game.session.command_completed.connect(_command_completed)
+	get_viewport().size_changed.connect(_apply_safe_area)
+	_apply_safe_area()
 	_refresh()
 
 
@@ -165,6 +174,7 @@ func _build_interface() -> void:
 	status_panel.add_child(status_label)
 
 	var dock := PanelContainer.new()
+	dock.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	controls.add_child(dock)
 	dock.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_WIDE)
 	dock.offset_left = 16
@@ -188,7 +198,19 @@ func _build_interface() -> void:
 	route_selector.select(game.selected_route)
 	route_selector.item_selected.connect(_route_selected)
 	route_selector.tooltip_text = "ROUTE_TOOLTIP"
+	route_selector.custom_minimum_size.y = 48
 	orders.add_child(route_selector)
+	var command_button := _button("COMMAND_BUTTON", _toggle_commands)
+	command_button.custom_minimum_size.y = 48
+	orders.add_child(command_button)
+	rally_button = _button("RALLY_BUTTON", func(): game.session.submit(MatchCommand.new(MatchCommand.Action.RALLY, game.player.commander_id)))
+	rally_button.custom_minimum_size.y = 48
+	orders.add_child(rally_button)
+	regroup_button = _button("REGROUP_BUTTON", func(): game.session.submit(MatchCommand.new(MatchCommand.Action.REGROUP, game.player.commander_id)))
+	regroup_button.custom_minimum_size.y = 48
+	orders.add_child(regroup_button)
+	rally_button.tooltip_text = "RALLY_TOOLTIP"
+	regroup_button.tooltip_text = "REGROUP_TOOLTIP"
 	tabs = TabContainer.new()
 	tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	tabs.focus_mode = Control.FOCUS_NONE
@@ -199,14 +221,17 @@ func _build_interface() -> void:
 		page.name = title
 		page.add_theme_constant_override("separation", 8)
 		tabs.add_child(page)
-	for id in [&"worker", &"melee", &"ranged", &"tank"]:
+	var recruit_ids: Array[StringName] = [&"worker"]
+	for id in game.unit_data:
+		recruit_ids.append(id)
+	for id in recruit_ids:
 		var button: Button = _button("", _buy.bind(id))
 		button.custom_minimum_size = Vector2(160, 78)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		button.alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		tabs.get_child(0).add_child(button)
 		var icon = preload("res://scripts/ui/unit_icon.gd").new()
-		icon.kind = id
+		icon.kind = &"worker" if id == &"worker" else game.unit_data[id].tactical_role
 		icon.position = Vector2(4, 6)
 		icon.size = Vector2(43, 60)
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -238,11 +263,14 @@ func _build_interface() -> void:
 	bottom.add_child(feedback_label)
 	_build_structure_panel()
 	_build_guidance()
+	command_panel = preload("res://scripts/ui/command_panel.gd").new()
+	controls.add_child(command_panel)
+	command_panel.setup(game)
 	_build_mobile_controls()
 	_build_overlay()
 
 func _build_mobile_controls() -> void:
-	if not DisplayServer.is_touchscreen_available():
+	if not DisplayServer.is_touchscreen_available() and not game.force_touch_controls:
 		return
 	touch_stick = TOUCH_STICK_SCRIPT.new()
 	touch_stick.controller = game.player.controller
@@ -296,11 +324,7 @@ func _refresh_structure() -> void:
 func _build_or_upgrade() -> void:
 	if active_pad == null:
 		return
-	var success: bool = game.upgrade_tower(game.player, active_pad) if active_pad.occupied() else game.build_tower(game.player, active_pad)
-	if not success:
-		AudioFeedback.play(&"failed")
-		notify("BUILD_UNAVAILABLE")
-	_refresh()
+	_queue_purchase(MatchCommand.Action.UPGRADE_TOWER if active_pad.occupied() else MatchCommand.Action.BUILD, {"pad": active_pad}, structure_button)
 
 
 func _build_overlay() -> void:
@@ -318,23 +342,42 @@ func _build_overlay() -> void:
 	shade.hide()
 	result_overlay.visibility_changed.connect(func(): shade.visible = result_overlay.visible)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(480, 340)
+	panel.custom_minimum_size = Vector2(820, 0)
 	result_overlay.add_child(panel)
 	var column := VBoxContainer.new()
-	column.add_theme_constant_override("separation", 20)
+	column.add_theme_constant_override("separation", 8)
 	panel.add_child(column)
 	result_title = _label("", 38)
 	result_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(result_title)
 	result_details = _label("")
 	result_details.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	column.add_child(result_details)
+	result_details.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	result_details.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var details_scroll := ScrollContainer.new()
+	details_scroll.custom_minimum_size = Vector2(760, 140)
+	details_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	details_scroll.add_child(result_details)
+	column.add_child(details_scroll)
 	resume_button = _button("RESUME", _toggle_pause)
 	column.add_child(resume_button)
 	column.add_child(_button("RESTART", _restart))
 	settings_button = _button("SETTINGS", _open_settings)
 	column.add_child(settings_button)
 	column.add_child(_button("HELP_BUTTON", _open_help))
+	column.add_child(_button("TUTORIAL_BUTTON", _start_tutorial))
+	column.add_child(_button("MATCH_BUTTON", _start_standard_match))
+	difficulty_selector = OptionButton.new()
+	difficulty_selector.custom_minimum_size.y = 48
+	for key in ["DIFFICULTY_EASY", "DIFFICULTY_STANDARD", "DIFFICULTY_HARD"]:
+		difficulty_selector.add_item(tr(key))
+	difficulty_selector.select([&"easy", &"standard", &"hard"].find(GameSettings.difficulty))
+	difficulty_selector.item_selected.connect(func(index): GameSettings.set_difficulty([&"easy", &"standard", &"hard"][index]))
+	difficulty_selector.tooltip_text = "DIFFICULTY_TOOLTIP"
+	column.add_child(difficulty_selector)
+	for child in column.get_children():
+		if child is Button:
+			child.custom_minimum_size.y = 44
 	result_overlay.hide()
 
 
@@ -359,6 +402,12 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if game != null and not get_tree().paused and not game.match_finished:
+		for index in range(3):
+			if event.is_action_pressed(["route_north", "route_center", "route_south"][index]):
+				route_selector.select(index)
+				_route_selected(index)
+				get_viewport().set_input_as_handled()
 	if event.is_action_pressed("pause_match") and not event.is_echo() and game != null:
 		if is_instance_valid(help_panel):
 			_close_help()
@@ -371,6 +420,11 @@ func _unhandled_input(event: InputEvent) -> void:
 
 func _refresh() -> void:
 	_refresh_structure()
+	if command_panel != null:
+		command_panel.refresh()
+	rally_button.text = tr("RALLY_BUTTON") if game.player.rally_cooldown <= 0.0 else tr("RALLY_COOLDOWN") % ceili(game.player.rally_cooldown)
+	rally_button.disabled = not game.player.alive or game.player.rally_cooldown > 0.0 or game.match_finished or get_tree().paused
+	regroup_button.disabled = not game.player.alive or game.match_finished or get_tree().paused
 	resources_label.text = "◈ %s   ♣ %s" % [_wallet_number(team.money), _wallet_number(team.wood)]
 	resources_label.tooltip_text = tr("WALLET_TOOLTIP") % game.balance.ally_money_reserve
 	var king_hp: float = team.king.health if is_instance_valid(team.king) else 0.0
@@ -393,6 +447,12 @@ func _refresh() -> void:
 	status_label.text = tr("ALLY_STATUS") % [int(game.match_seconds) / 60, int(game.match_seconds) % 60, hero_text, tr(ally.tactical_status)]
 	if is_instance_valid(team.king) and team.king.danger_remaining > 0:
 		status_label.text += tr("KING_WARNING")
+	var rallying := 0
+	for unit in game.entities.get_children():
+		if unit is CombatEntity and unit.category == &"army" and unit.team == team and unit.rally_remaining > 0.0:
+			rallying += 1
+	status_label.text += "\n" + tr("RALLYING_COUNT") % rallying
+	route_selector.tooltip_text = tr("RECRUIT_LOCATION") % tr(RouteMap.LANE_NAMES[game.selected_route])
 	var next_shop_state: Array = [team.money, team.wood, team.worker_count, team.combat_count, hash(team.upgrade_levels), game.selected_route, game.match_finished, get_tree().paused, Localization.language]
 	if next_shop_state != shop_state:
 		shop_state = next_shop_state
@@ -401,16 +461,17 @@ func _refresh() -> void:
 
 func _refresh_shop() -> void:
 	for id in army_buttons:
-		var cost: int = game.WORKER_COST if id == &"worker" else int(game.unit_data[id].money_cost)
+		var availability: Dictionary = game.recruit_availability(team, id, game.selected_route)
+		var cost: int = availability.gold
 		var button: Button = army_buttons[id]
-		var description: String = ROLE_KEYS[id]
-		button.text = tr("SHOP_CARD") % [tr("UNIT_" + String(id).to_upper()), cost, tr(description)]
+		var description: String = ROLE_KEYS.get(id, ROLE_KEYS.get(game.unit_data[id].tactical_role, "ROLE_MELEE")) if id != &"worker" else "ROLE_WORKER"
+		button.text = tr("SHOP_CARD") % [tr("UNIT_WORKER" if id == &"worker" else game.unit_data[id].display_name), cost, tr(description)]
 		var capped: bool = (
-			team.worker_count >= GameTeam.MAX_WORKERS
+			team.worker_count >= game.rules.worker_cap
 			if id == &"worker"
-			else team.combat_count >= GameTeam.MAX_COMBAT_UNITS
+			else team.combat_count >= game.rules.army_cap
 		)
-		button.disabled = game.match_finished or get_tree().paused or team.money < cost or capped
+		button.disabled = not availability.allowed
 		button.tooltip_text = "LIMIT_REACHED" if capped else (tr("NEED_GOLD") % maxi(0,cost-team.money) if team.money < cost else tr("ROUTE_RECRUIT") % tr(RouteMap.LANE_NAMES[game.selected_route]))
 		if id == &"worker" and not capped and team.money >= cost:
 			button.tooltip_text = tr("WORKER_RECRUIT_TOOLTIP")
@@ -426,22 +487,36 @@ func _refresh_shop() -> void:
 				level,
 				team.get_stat(definition.stat),
 				tr(definition.unit),
-				team.get_stat(definition.stat) + definition.amount,
+				team.get_stat(definition.stat) + (0 if maxed else definition.amount),
 				cost_text,
 			]
 		)
-		button.disabled = game.match_finished or get_tree().paused or maxed or team.wood < definition.cost(level)
+		button.disabled = not game.upgrade_availability(team, definition.id).allowed
 
 
 func _buy(id: StringName) -> void:
-	if game.purchase(team.team_id, id, true, game.selected_route):
-		_flash_button(army_buttons[id])
-	_refresh()
+	_queue_purchase(MatchCommand.Action.RECRUIT, {"id": id, "route": game.selected_route, "feedback": true}, army_buttons[id])
 
 
 func _upgrade(id: StringName) -> void:
-	if game.purchase_upgrade(team.team_id, id):
-		_flash_button(upgrade_buttons[id])
+	_queue_purchase(MatchCommand.Action.UPGRADE, {"id": id, "feedback": true}, upgrade_buttons[id])
+
+func _queue_purchase(action: MatchCommand.Action, payload: Dictionary, button: Button) -> void:
+	if game.session.state != MatchSession.State.RUNNING or get_tree().paused:
+		return
+	var receipt: int = game.session.submit(MatchCommand.new(action, game.player.commander_id, payload))
+	purchase_feedback[receipt] = button
+
+func _command_completed(receipt: int, result: CommandResult) -> void:
+	if not purchase_feedback.has(receipt):
+		return
+	var button = purchase_feedback[receipt]
+	purchase_feedback.erase(receipt)
+	if result.success and is_instance_valid(button):
+		_flash_button(button)
+	elif result.reason != &"cancelled":
+		AudioFeedback.play(&"failed")
+		notify("BUILD_UNAVAILABLE")
 	_refresh()
 
 
@@ -484,6 +559,10 @@ func _toggle_pause() -> void:
 	if game.player.controller.has_method("reset_touch"):
 		game.player.controller.reset_touch()
 	get_tree().paused = not get_tree().paused
+	if get_tree().paused:
+		game.session.pause()
+	else:
+		game.session.resume()
 	result_title.text = "PAUSED"
 	result_details.text = "PAUSE_INSTRUCTIONS"
 	resume_button.show()
@@ -530,7 +609,15 @@ func _wallet_number(value: int) -> String:
 func _refresh_result(winner: int) -> void:
 	result_title.text = "VICTORY" if winner == team.team_id else "DEFEAT"
 	result_details.text = tr("VICTORY_DETAIL" if winner == team.team_id else "DEFEAT_DETAIL")
+	if game.tutorial != null:
+		result_details.text = tr("TUTORIAL_COMPLETE")
 	result_details.text += tr("RESULT_TIME") % [int(game.match_seconds)/60,int(game.match_seconds)%60]
+	if game.coordination != null:
+		for commander in game.commanders:
+			var stats: Dictionary = game.coordination.commander_stats[commander.commander_id]
+			result_details.text += "\n" + tr("RECAP_COMMANDER") % [tr(commander.commander_name), stats.gold, stats.wood, stats.recruits, stats.king_damage, stats.rallies]
+		var stats: Dictionary = game.coordination.team_stats[team.team_id]
+		result_details.text += "\n" + tr("RECAP_TEAM") % [stats.workers_lost, stats.deposited, stats.towers_built, stats.towers_destroyed]
 
 func _language_changed() -> void:
 	shop_state.clear()
@@ -539,6 +626,9 @@ func _language_changed() -> void:
 	for index in range(3):
 		tabs.set_tab_title(index, tr(["TAB_ARMY", "TAB_KING", "TAB_ECONOMY"][index]))
 		route_selector.set_item_text(index, tr(RouteMap.LANE_NAMES[index]))
+	if difficulty_selector != null:
+		for index in range(3):
+			difficulty_selector.set_item_text(index, tr(["DIFFICULTY_EASY", "DIFFICULTY_STANDARD", "DIFFICULTY_HARD"][index]))
 	if game.match_finished:
 		_refresh_result(game.winning_team_id)
 	if notice_time > 0:
@@ -554,6 +644,7 @@ func _open_settings() -> void:
 	settings_panel = preload("res://scripts/ui/settings_panel.gd").new()
 	controls.add_child(settings_panel)
 	settings_panel.closed.connect(_close_settings)
+	_apply_safe_area()
 
 func _close_settings() -> void:
 	settings_panel.queue_free()
@@ -580,7 +671,7 @@ func _build_guidance() -> void:
 	var actions := HBoxContainer.new()
 	column.add_child(actions)
 	for entry in [["HELP_BUTTON", _open_help], ["HELP_DISMISS", _dismiss_guidance]]:
-		var button := _button(entry[0], entry[1])
+		var button := _button("TUTORIAL_SKIP" if game.tutorial_mode and entry[0] == "HELP_DISMISS" else entry[0], entry[1])
 		button.custom_minimum_size.y = 30
 		button.add_theme_font_size_override("font_size", 13)
 		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -590,7 +681,11 @@ func _build_guidance() -> void:
 func _update_guidance() -> void:
 	if not is_instance_valid(guidance_panel):
 		return
-	guidance_panel.visible = GameSettings.onboarding_enabled and not get_tree().paused and not game.match_finished and game.match_seconds < 100
+	guidance_panel.visible = GameSettings.onboarding_enabled and not get_tree().paused and not game.match_finished and game.match_seconds < 100 and not command_panel.visible
+	if game.tutorial != null:
+		guidance_panel.visible = not get_tree().paused and not game.match_finished and not command_panel.visible
+		guidance_text.text = game.tutorial.instruction()
+		return
 	var key: String = "HELP_TIP_OBJECTIVE"
 	if not game.player.alive:
 		key = "HELP_TIP_RESPAWN"
@@ -607,6 +702,9 @@ func _update_guidance() -> void:
 
 
 func _dismiss_guidance() -> void:
+	if game.tutorial != null:
+		_start_standard_match()
+		return
 	if GameSettings.set_onboarding_enabled(false) != OK:
 		notify("SETTINGS_SAVE_FAILED")
 	_update_guidance()
@@ -621,8 +719,53 @@ func _open_help() -> void:
 	help_panel.setup(game)
 	controls.add_child(help_panel)
 	help_panel.closed.connect(_close_help)
+	_apply_safe_area()
 
 
 func _close_help() -> void:
 	help_panel.queue_free()
 	help_panel = null
+
+func _toggle_commands() -> void:
+	command_panel.visible = not command_panel.visible
+	_update_guidance()
+
+func _start_tutorial() -> void:
+	AudioFeedback.stop_all()
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/main/tutorial.tscn")
+
+func _start_standard_match() -> void:
+	AudioFeedback.stop_all()
+	get_tree().paused = false
+	get_tree().change_scene_to_file("res://scenes/main/main.tscn")
+
+func _match_event(event: Dictionary) -> void:
+	if event.type == "alert" and event.team == team.team_id:
+		var key := "ALERT_" + str(event.category).to_upper()
+		if event.category == "king_danger":
+			notify("KING_DANGER")
+		elif notice_priority < 3:
+			notify(key, [RouteMap.LANE_NAMES[event.lane]])
+
+func _apply_safe_area() -> void:
+	var bounds := get_viewport().get_visible_rect()
+	var safe := bounds
+	if game.safe_area_override.has_area():
+		safe = bounds.intersection(game.safe_area_override)
+	elif DisplayServer.is_touchscreen_available():
+		var physical := Rect2(DisplayServer.get_display_safe_area())
+		if physical.has_area():
+			safe = bounds.intersection(get_viewport().get_screen_transform().affine_inverse() * physical)
+	controls.offset_left = safe.position.x
+	controls.offset_top = safe.position.y
+	controls.offset_right = safe.end.x - bounds.end.x
+	controls.offset_bottom = safe.end.y - bounds.end.y
+	if game.force_touch_controls or DisplayServer.is_touchscreen_available():
+		_ensure_touch_targets(controls)
+
+func _ensure_touch_targets(node: Node) -> void:
+	if node is BaseButton or node is TabBar:
+		node.custom_minimum_size.y = maxf(48.0, node.custom_minimum_size.y)
+	for child in node.get_children():
+		_ensure_touch_targets(child)

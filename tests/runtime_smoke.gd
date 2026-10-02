@@ -34,7 +34,7 @@ func _run() -> void:
 	check(get_nodes_in_group("trees").size() == 32, "Symmetrical tree groves exist")
 	check(game.hud.controls.size.x >= 1280.0, "HUD root fills viewport")
 	var money_before: int = azure.money
-	game.get_node("EconomyManager")._process(1.0)
+	game.get_node("EconomyManager").step_gameplay(1.0)
 	check(azure.money == money_before + 10, "Passive income uses team stats")
 	azure.money = 0
 	check(not game.purchase(1, &"tank", false), "Unaffordable purchase rejected")
@@ -74,7 +74,7 @@ func _run() -> void:
 	var wood_before: int = azure.wood
 	money_before = azure.money
 	for step in range(1800):
-		worker._physics_process(1.0 / 60.0)
+		worker.step_gameplay(1.0 / 60.0)
 	check(azure.wood > wood_before, "Worker finds tree, gathers, returns and deposits")
 	check(
 		azure.money - money_before == azure.wood - wood_before, "Wood delivery pays matching money"
@@ -85,7 +85,7 @@ func _run() -> void:
 	tree.wood_remaining = 2
 	check(tree.harvest(10) == 2 and not tree.available(), "Finite tree cannot overdraw")
 	var position_before: Vector2 = melee.position
-	melee._physics_process(0.1)
+	melee.step_gameplay(0.1)
 	check(melee.position.x > position_before.x, "Army advances toward enemy base")
 	melee.position = ember.base_position + Vector2(-70, 0)
 	melee.cooldown = 0.0
@@ -96,11 +96,11 @@ func _run() -> void:
 	melee.attack(ember.king)
 	check(ember.king.health == enemy_hp, "Attack cooldown prevents repeated damage")
 	var melee_hp: float = melee.health
-	ember.king._physics_process(0.1)
+	ember.king.step_gameplay(0.1)
 	check(melee.health < melee_hp, "King defends itself automatically")
 	var bot = game.commanders[2].controller
 	ember.money = 1000
-	bot._process(20.1)
+	bot.step_gameplay(20.1)
 	check(ember.combat_count > 0, "Bot buys combat units")
 	var pad = game.pads[0]
 	game.player.position = pad.position
@@ -116,12 +116,12 @@ func _run() -> void:
 	enemy_commander.position = pad.position
 	check(not game.upgrade_tower(enemy_commander, pad), "Enemy cannot upgrade owned tower")
 	var commander_hp: float = enemy_commander.health
-	pad.tower._physics_process(0.1)
+	pad.tower.step_gameplay(0.1)
 	check(enemy_commander.health < commander_hp, "Tower automatically attacks enemy")
 	pad.tower.take_damage(99999, ember.team_id)
 	check(not pad.occupied() and pad.rebuild_remaining > 0, "Destroyed tower releases pad with cooldown")
 	check(not game.build_tower(game.player, pad), "Cooldown prevents immediate rebuild")
-	pad._process(9.0)
+	pad.step_gameplay(9.0)
 	check(not game.build_tower(enemy_commander, pad), "Enemy cannot occupy protected home pad")
 	check(game.build_tower(game.player, pad), "Tower can be rebuilt after cooldown")
 	game.player.position = azure.base_position
@@ -129,11 +129,11 @@ func _run() -> void:
 	for commander in game.commanders:
 		commander.take_damage(99999, 2 if commander.team.team_id == 1 else 1)
 		check(not commander.alive and not game.match_finished, "Commander death is independent of match")
-		commander._physics_process(12.1)
+		commander.step_gameplay(12.1)
 		check(commander.alive and commander.position == commander.spawn_position, "Each commander respawns at own point")
 	game.player.take_damage(9999.0, 2)
 	check(not game.player.alive and not game.match_finished, "Hero death does not end match")
-	game.player._physics_process(12.1)
+	game.player.step_gameplay(12.1)
 	check(game.player.alive and game.player.health == game.player.max_health, "Hero respawns")
 	game.hud._toggle_pause()
 	check(paused and game.hud.result_overlay.visible, "Pause exposes working menu")

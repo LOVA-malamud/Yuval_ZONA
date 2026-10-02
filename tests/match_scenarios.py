@@ -13,6 +13,7 @@ UNIT_FIELDS = {"money_cost", "max_health", "damage", "move_speed", "attack_range
 UPGRADES = {"king_health", "king_damage", "king_attack_speed", "king_range", "worker_speed", "worker_capacity", "worker_gather", "income"}
 UPGRADE_FIELDS = {"base_cost", "cost_growth", "amount", "maximum_level"}
 BALANCE_FIELDS = {"tower_money", "tower_wood", "tower_health", "tower_damage", "tower_range", "tower_cooldown", "tower_rebuild_delay", "build_reach", "ally_money_reserve", "ally_wood_reserve", "aggressive_decision_seconds", "economic_decision_seconds", "commander_health", "commander_strike_windup", "commander_respawn", "base_heal_cooldown"}
+RULE_FIELDS = {"rally_wait_seconds", "army_speed_multiplier"}
 INTEGER_FIELDS = TEAM_FIELDS.keys() | {"worker_cost", "money_cost", "base_cost", "maximum_level", "tower_money", "tower_wood", "ally_money_reserve", "ally_wood_reserve"}
 
 
@@ -39,8 +40,11 @@ def validate(config):
     if not isinstance(config, dict) or set(config) - {"shared", "teams"}:
         raise ValueError("config: expected shared and/or teams")
     shared = config.get("shared", {})
-    if not isinstance(shared, dict) or set(shared) - {"team", "base_stats", "units", "upgrades", "balance", "worker_cost"}:
+    if not isinstance(shared, dict) or set(shared) - {"team", "base_stats", "units", "upgrades", "balance", "worker_cost", "rules", "difficulty"}:
         raise ValueError("shared: unknown field")
+    if "difficulty" in shared and shared["difficulty"] not in ("easy", "standard", "hard"):
+        raise ValueError("shared.difficulty: expected easy, standard, or hard")
+    _fields(shared.get("rules", {}), RULE_FIELDS, "shared.rules")
     if "worker_cost" in shared:
         _number(shared["worker_cost"], "shared.worker_cost")
     _fields(shared.get("team", {}), TEAM_FIELDS, "shared.team")

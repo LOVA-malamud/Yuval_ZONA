@@ -5,6 +5,7 @@ const SPEED: float = 1400.0
 const RADIUS: float = 5.0
 
 var game
+var source_commander_id: int = 0
 var owner_team_id: int
 var base_damage: float
 var structure_multiplier: float = 1.0
@@ -12,8 +13,9 @@ var direction := Vector2.ZERO
 var remaining: float = 0.0
 
 
-func configure(manager, team_id: int, start: Vector2, aim: Vector2, damage: float, multiplier: float) -> void:
+func configure(manager, team_id: int, start: Vector2, aim: Vector2, damage: float, multiplier: float, commander_id: int = 0) -> void:
 	game = manager
+	source_commander_id = commander_id
 	owner_team_id = team_id
 	position = start
 	direction = start.direction_to(aim)
@@ -27,7 +29,7 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func _physics_process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
 	if remaining <= 0.0:
 		queue_free()
 		return
@@ -38,7 +40,9 @@ func _physics_process(delta: float) -> void:
 		return
 	var struck: CombatEntity = null
 	var nearest: float = INF
-	for node in get_tree().get_nodes_in_group("combatants"):
+	for node in game.session.actors.values():
+		if not is_instance_valid(node):
+			continue
 		var entity := node as CombatEntity
 		if entity == null or not entity.alive or not entity.team.is_enemy(owner_team_id):
 			continue
@@ -50,7 +54,7 @@ func _physics_process(delta: float) -> void:
 				struck = entity
 	if struck != null:
 		var amount: float = base_damage * (structure_multiplier if struck.kind in [&"king", &"tower"] else 1.0)
-		struck.take_damage(amount, owner_team_id)
+		struck.take_damage(amount, owner_team_id, source_commander_id)
 		game.spawn_effect(global_position + direction * nearest, Color("e6c28b"), "impact")
 		queue_free()
 		return

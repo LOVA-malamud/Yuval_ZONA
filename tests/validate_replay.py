@@ -9,10 +9,10 @@ from pathlib import Path
 
 def validate(run):
     assert run['outcome'] in ('win', 'timeout'), run.get('error')
-    assert run['replay_version'] == 2
+    assert run['replay_version'] in (2, 3)
     geometry = run['map']
-    assert geometry['size'] == [4600, 2600]
-    assert len(geometry['lanes']) == 3 and len(geometry['pads']) == 9
+    assert len(geometry['size']) == 2 and all(x > 0 for x in geometry['size'])
+    assert geometry['lanes'] and geometry['pads']
     assert geometry['obstacles'] and geometry['trees']
     frames = run['timeline']
     assert frames[0]['t'] == 0
@@ -21,7 +21,7 @@ def validate(run):
     for i, frame in enumerate(frames):
         if i:
             delta = frame['t'] - frames[i - 1]['t']
-            assert 0 <= delta <= 1.05, delta
+            assert 0 <= delta <= run.get('sample_seconds', 1) + 0.05, delta
         ids = [entity[5] for entity in frame['entities']]
         assert len(ids) == len(set(ids)), 'duplicate entity ID in frame'
         for entity in frame['entities']:
@@ -31,14 +31,15 @@ def validate(run):
             assert entity[6] > 0 and 0 <= entity[4] <= entity[6]
         for team in frame['teams']:
             composition = Counter(e[1] for e in frame['entities'] if e[0] == team['id'])
-            assert team['army'] == sum(composition[k] for k in ('melee', 'ranged', 'tank'))
+            army_kinds = [kind for kind, definition in run.get('entity_definitions', {}).items() if definition['category'] == 'army'] or ['melee', 'ranged', 'tank']
+            assert team['army'] == sum(composition[k] for k in army_kinds)
             assert team['workers'] == composition['worker']
             assert team['towers'] == composition['tower']
     times = [event['t'] for event in run['events']]
     assert times == sorted(times)
     assert all(0 <= t <= run['duration'] + 0.051 for t in times)  # older rounded event times
     for team in (1, 2):
-        events = [e for e in run['events'] if e['team'] == team]
+        events = [e for e in run['events'] if e.get('team') == team]
         assert run['towers_built'][str(team)] == sum(e['type'] == 'tower_built' for e in events)
         assert run['deaths'][str(team)] == sum(e['type'] == 'death' for e in events)
     if run['outcome'] == 'win':

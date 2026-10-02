@@ -4,12 +4,13 @@ var grass_mesh: ArrayMesh
 var pebbles: PackedVector2Array
 
 func _ready() -> void:
+	var bounds: Vector2 = get_parent().map_definition.bounds
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1073
 	var vertices := PackedVector3Array()
 	var colors := PackedColorArray()
 	for i in range(1900):
-		var point := Vector2(rng.randf_range(35,4565),rng.randf_range(35,2565))
+		var point := Vector2(rng.randf_range(35,bounds.x - 35),rng.randf_range(35,bounds.y - 35))
 		_grass_line(vertices, colors, point, point + Vector2(-3, -6), Color("3a5745"))
 		_grass_line(vertices, colors, point, point + Vector2(3, -7), Color("405d48"))
 	var mesh_arrays: Array = []
@@ -19,13 +20,13 @@ func _ready() -> void:
 	grass_mesh = ArrayMesh.new()
 	grass_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh_arrays)
 	for i in range(320):
-		pebbles.append(Vector2(rng.randf_range(35,4565),rng.randf_range(35,2565)))
+		pebbles.append(Vector2(rng.randf_range(35,bounds.x - 35),rng.randf_range(35,bounds.y - 35)))
 	queue_redraw()
 
 func _draw() -> void:
 	var game = get_parent()
 	var map = game.navigation
-	draw_rect(Rect2(Vector2.ZERO, RouteMap.SIZE), Color("304b3e"))
+	draw_rect(Rect2(Vector2.ZERO, game.MAP_SIZE), Color("304b3e"))
 	# One immutable mesh keeps 3,800 decorative strokes out of the per-frame
 	# CanvasItem command traversal. Each quad has the original width and color.
 	draw_mesh(grass_mesh, null)
@@ -41,7 +42,7 @@ func _draw() -> void:
 			for j in range(int(distance/65)):
 				var p: Vector2 = lane[i].lerp(lane[i+1],float(j)*65.0/distance)
 				draw_line(p+Vector2(-5,7),p+Vector2(6,3),Color("827655"),2)
-	for obstacle in RouteMap.OBSTACLES:
+	for obstacle in map.obstacles:
 		draw_rect(Rect2(obstacle.position+Vector2(12,18),obstacle.size),Color("203a32"))
 		draw_rect(obstacle.grow(6),Color("283b34"))
 		draw_rect(obstacle,Color("59685b"))
@@ -72,7 +73,15 @@ func _draw() -> void:
 		var x: float = 3370 if mirror else 1000
 		for y in [540,2140]:
 			draw_string(ThemeDB.fallback_font,Vector2(x,y),tr("MAP_GROVE"),HORIZONTAL_ALIGNMENT_LEFT,-1,16,Color("b2c196"))
-	draw_rect(Rect2(Vector2.ZERO,RouteMap.SIZE),Color("a59b76"),false,12)
+	for pad in game.pads:
+		if pad.home_team_id == 0:
+			draw_string(ThemeDB.fallback_font, pad.position + Vector2(-140, 85), tr("MAP_NEUTRAL_PAD"), HORIZONTAL_ALIGNMENT_CENTER, 280, 12, Color("c8bc91"))
+	for mirrored in [false, true]:
+		for grove in game.map_definition.groves:
+			if grove.x > 1000:
+				var point: Vector2 = Vector2(game.MAP_SIZE.x - grove.x if mirrored else grove.x, grove.y + 150)
+				draw_string(ThemeDB.fallback_font, point + Vector2(-120, 0), tr("MAP_RENEWABLE"), HORIZONTAL_ALIGNMENT_CENTER, 280, 12, Color("b2c196"))
+	draw_rect(Rect2(Vector2.ZERO,game.MAP_SIZE),Color("a59b76"),false,12)
 
 func _grass_line(vertices: PackedVector3Array, colors: PackedColorArray, start: Vector2, finish: Vector2, color: Color) -> void:
 	var edge: Vector2 = (finish - start).orthogonal().normalized() * 0.75

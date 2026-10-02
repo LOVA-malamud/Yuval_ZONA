@@ -9,29 +9,26 @@ const WORKER_SCENE = preload("res://scenes/workers/worker.tscn")
 const PLAYER_SCENE = preload("res://scenes/player/player.tscn")
 const TREE_SCENE = preload("res://scenes/environment/tree_resource.tscn")
 const WORKER_COST: int = 65
-const MAP_SIZE := Vector2(4600, 2600)
+var MAP_SIZE := Vector2(4600, 2600)
 
-var unit_data: Dictionary = {
-	&"melee": preload("res://resources/units/melee.tres"),
-	&"ranged": preload("res://resources/units/ranged.tres"),
-	&"tank": preload("res://resources/units/tank.tres"),
-}
-var upgrades: Array[UpgradeDefinition] = [
-	preload("res://resources/upgrades/king_health.tres"),
-	preload("res://resources/upgrades/king_damage.tres"),
-	preload("res://resources/upgrades/king_attack_speed.tres"),
-	preload("res://resources/upgrades/king_range.tres"),
-	preload("res://resources/upgrades/worker_speed.tres"),
-	preload("res://resources/upgrades/worker_capacity.tres"),
-	preload("res://resources/upgrades/worker_gather.tres"),
-	preload("res://resources/upgrades/income.tres"),
-]
+@export var catalog: ContentCatalog = preload("res://resources/content_catalog.tres")
+@export var map_definition: MapDefinition = preload("res://resources/default_map.tres")
+@export var rules: MatchRules = preload("res://resources/default_rules.tres")
+var unit_data: Dictionary = {}
+var upgrades: Array[UpgradeDefinition] = []
 @export var strategy_seed: int = 42
 var teams: Array[GameTeam] = []
 var player = null
 var commanders: Array = []
 const HUMAN_CONTROLLER = preload("res://scripts/player/human_controller.gd")
 const AI_CONTROLLER = preload("res://scripts/ai/enemy_ai.gd")
+@export var presentation_enabled: bool = true
+var session: MatchSession
+var coordination: CoordinationService
+@export var force_touch_controls: bool = false
+var safe_area_override := Rect2()
+@export var tutorial_mode: bool = false
+var tutorial: TutorialDirector
 var match_finished: bool = false
 var winning_team_id: int = 0
 var match_seconds: float = 0.0
@@ -42,7 +39,7 @@ var balance = preload("res://resources/battle_balance.tres")
 var simulation_config: Dictionary = {}
 var worker_cost: int = WORKER_COST
 var pads: Array = []
-var navigation := RouteMap.new()
+var navigation: RouteMap
 var selected_route: int = 1
 var route_highlight: float = 0.0
 var spatial: Dictionary = {}
@@ -64,6 +61,15 @@ func _team_config(id: int) -> Dictionary:
 	return result
 
 func _apply_simulation_config() -> void:
+	unit_data = catalog.unit_definitions()
+	upgrades = catalog.upgrades
+	rules = rules.duplicate(true)
+	rules.difficulty = StringName(simulation_config.get("shared", {}).get("difficulty", GameSettings.difficulty))
+	for field in simulation_config.get("shared", {}).get("rules", {}):
+		rules.set(field, simulation_config["shared"]["rules"][field])
+	map_definition = map_definition.duplicate(true)
+	MAP_SIZE = map_definition.bounds
+	navigation = RouteMap.new(map_definition)
 	# The scene stores preloaded resources; each match owns its mutable copies.
 	balance = balance.duplicate(true)
 	for field in simulation_config.get("shared", {}).get("balance", {}):
@@ -81,30 +87,45 @@ func _apply_simulation_config() -> void:
 			copy.set(field, simulation_config["shared"]["upgrades"][String(copy.id)][field])
 		copied_upgrades.append(copy)
 	upgrades = copied_upgrades
-	worker_cost = int(simulation_config.get("shared", {}).get("worker_cost", WORKER_COST))
+	worker_cost = int(simulation_config.get("shared", {}).get("worker_cost", rules.worker_cost))
 
 
 func _ready() -> void:
 	_apply_simulation_config()
+	session = MatchSession.new()
+	add_child(session)
+	session.start(self)
+	if not presentation_enabled:
+		$Battlefield.free()
+		hud.free()
+		hud = null
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_title("Crownfront")
 	get_tree().paused = false
-	_create_team(1, "TEAM_AZURE", Color(0.30, 0.76, 1.0), Vector2(400, 1300), 1.0)
-	_create_team(2, "TEAM_EMBER", Color(1.0, 0.40, 0.35), Vector2(4200, 1300), -1.0)
+	_create_team(1, "TEAM_AZURE", Color(0.30, 0.76, 1.0), map_definition.bases[0], 1.0)
+	_create_team(2, "TEAM_EMBER", Color(1.0, 0.40, 0.35), map_definition.bases[1], -1.0)
 	_create_trees()
 	_create_pads()
 	for team in teams:
 		_create_king(team)
-		for index in range(int(_team_config(team.team_id).get("workers", 3))):
+		for index in range(int(_team_config(team.team_id).get("workers", rules.starting_workers))):
 			_spawn_worker(team)
 	_create_commander(teams[0], 1, "COMMANDER_YOU", "human", Vector2(-25, 110))
 	_create_commander(teams[0], 2, "COMMANDER_WARDEN", "ally", Vector2(50, -110))
 	_create_commander(teams[1], 3, "COMMANDER_VANGUARD", "aggressive", Vector2(-50, 110))
 	_create_commander(teams[1], 4, "COMMANDER_STEWARD", "economic", Vector2(25, -110))
+	coordination = CoordinationService.new()
+	add_child(coordination)
+	coordination.setup(self)
+	if tutorial_mode:
+		tutorial = TutorialDirector.new()
+		add_child(tutorial)
+		tutorial.setup(self)
 	$EconomyManager.teams = teams
-	hud.setup(self, teams[0])
-	player.base_interacted.connect(hud.show_king_tab)
-	match_ended.connect(hud.show_result)
+	if presentation_enabled:
+		hud.setup(self, teams[0])
+		player.base_interacted.connect(hud.show_king_tab)
+		match_ended.connect(hud.show_result)
 
 
 func _create_commander(team: GameTeam, id: int, title: String, role: String, offset: Vector2) -> void:
@@ -130,16 +151,23 @@ func _create_commander(team: GameTeam, id: int, title: String, role: String, off
 		player = commander
 
 
-func _process(delta: float) -> void:
-	match_seconds += delta
-	route_highlight = maxf(0.0, route_highlight - delta)
+func _physics_process(_delta: float) -> void:
+	session.step()
+
+func _exit_tree() -> void:
+	if session != null:
+		session.stop()
+
+func play_sound(cue: StringName, point: Vector2 = Vector2.INF) -> void:
+	if presentation_enabled:
+		AudioFeedback.play(cue, point)
 
 
 func _create_team(id: int, title: String, tint: Color, base: Vector2, direction: float) -> void:
 	var team := GameTeam.new()
 	var settings: Dictionary = _team_config(id)
-	team.money = int(settings.get("money", team.money))
-	team.wood = int(settings.get("wood", team.wood))
+	team.money = int(settings.get("money", rules.starting_gold))
+	team.wood = int(settings.get("wood", rules.starting_wood))
 	for stat in settings.get("base_stats", {}):
 		team.base_stats[StringName(stat)] = float(settings["base_stats"][stat])
 	team.stats = team.base_stats.duplicate()
@@ -163,7 +191,7 @@ func _create_king(team: GameTeam) -> void:
 
 func _create_trees() -> void:
 	for mirrored in [false, true]:
-		for grove in [Vector2(450, 950), Vector2(450, 1650), Vector2(1150, 650), Vector2(1150, 1950)]:
+		for grove in map_definition.groves:
 			for index in range(4):
 				var tree = TREE_SCENE.instantiate()
 				var point: Vector2 = grove + Vector2(index % 2 * 90, index / 2 * 90)
@@ -191,7 +219,70 @@ func clamp_to_map(point: Vector2, margin: float) -> Vector2:
 	return point.clamp(Vector2.ONE * margin, MAP_SIZE - Vector2.ONE * margin)
 
 
+func commander_by_id(id: int):
+	for commander in commanders:
+		if commander.commander_id == id:
+			return commander
+	return null
+
+func _requester(team_id: int, feedback: bool) -> int:
+	if feedback and player != null and player.team.team_id == team_id:
+		return player.commander_id
+	for commander in commanders:
+		if commander.team.team_id == team_id:
+			return commander.commander_id
+	return 0
+
+func recruit_availability(team: GameTeam, id: StringName, route_id: int) -> Dictionary:
+	var cost: int = worker_cost if id == &"worker" else int(unit_data[id].money_cost) if unit_data.has(id) else 0
+	var reason: StringName = &"ok"
+	if match_finished or get_tree().paused:
+		reason = &"invalid_state"
+	elif id != &"worker" and not unit_data.has(id):
+		reason = &"invalid_content"
+	elif route_id < 0 or route_id >= navigation.lanes.size():
+		reason = &"invalid_route"
+	elif (id == &"worker" and team.worker_count >= rules.worker_cap) or (id != &"worker" and team.combat_count >= rules.army_cap):
+		reason = &"cap"
+	elif not team.can_afford(cost):
+		reason = &"insufficient_gold"
+	return {"allowed": reason == &"ok", "reason": reason, "gold": cost, "wood": 0}
+
+func upgrade_availability(team: GameTeam, id: StringName) -> Dictionary:
+	for definition in upgrades:
+		if definition.id == id:
+			var level: int = team.upgrade_level(id)
+			var cost: int = definition.cost(level)
+			var reason: StringName = &"ok"
+			if match_finished or get_tree().paused:
+				reason = &"invalid_state"
+			elif level >= definition.maximum_level:
+				reason = &"cap"
+			elif not team.can_afford(0, cost):
+				reason = &"insufficient_wood"
+			return {"allowed": reason == &"ok", "reason": reason, "gold": 0, "wood": cost}
+	return {"allowed": false, "reason": &"invalid_content", "gold": 0, "wood": 0}
+
 func purchase(team_id: int, id: StringName, feedback: bool = true, route_id: int = -1) -> bool:
+	var command := MatchCommand.new(MatchCommand.Action.RECRUIT, _requester(team_id, feedback), {"id": id, "feedback": feedback, "route": selected_route if route_id < 0 else route_id})
+	var result := session.execute(command)
+	if feedback and not result.success:
+		notify("UNIT_CAP" if result.reason == &"cap" else "INSUFFICIENT_GOLD")
+	return result.success
+
+func purchase_upgrade(team_id: int, id: StringName, feedback: bool = true) -> bool:
+	var result := session.execute(MatchCommand.new(MatchCommand.Action.UPGRADE, _requester(team_id, feedback), {"id": id, "feedback": feedback}))
+	if feedback and not result.success:
+		notify("INSUFFICIENT_WOOD")
+	return result.success
+
+func build_tower(commander, pad) -> bool:
+	return session.execute(MatchCommand.new(MatchCommand.Action.BUILD, commander.commander_id, {"pad": pad})).success
+
+func upgrade_tower(commander, pad) -> bool:
+	return session.execute(MatchCommand.new(MatchCommand.Action.UPGRADE_TOWER, commander.commander_id, {"pad": pad})).success
+
+func _purchase(team_id: int, id: StringName, feedback: bool = true, route_id: int = -1) -> bool:
 	if match_finished or get_tree().paused:
 		return false
 	var team: GameTeam = team_by_id(team_id)
@@ -201,37 +292,46 @@ func purchase(team_id: int, id: StringName, feedback: bool = true, route_id: int
 	if not is_worker and not unit_data.has(id):
 		return false
 	if (
-		(is_worker and team.worker_count >= GameTeam.MAX_WORKERS)
-		or (not is_worker and team.combat_count >= GameTeam.MAX_COMBAT_UNITS)
+		(is_worker and team.worker_count >= rules.worker_cap)
+		or (not is_worker and team.combat_count >= rules.army_cap)
 	):
 		if feedback:
 			notify("UNIT_CAP")
 		return false
 	var cost: int = worker_cost if is_worker else int(unit_data[id].money_cost)
+	var scene: PackedScene = catalog.worker_scene if is_worker else catalog.army_scene
+	if scene == null or not scene.can_instantiate():
+		return false
+	var recruit = scene.instantiate()
+	if not recruit is CombatEntity or not recruit.has_method("step_gameplay"):
+		recruit.free()
+		return false
 	if not team.spend(cost):
-		if feedback:
-			notify("INSUFFICIENT_GOLD")
+		recruit.free()
 		return false
 	if is_worker:
-		_spawn_worker(team)
+		recruit.configure(team, self)
+		recruit.position = _spawn_point(team) + Vector2(0, 65)
+		team.worker_count += 1
 	else:
-		var unit = UNIT_SCENE.instantiate()
-		unit.configure(team, self, unit_data[id])
-		unit.position = _spawn_point(team)
-		unit.formation_slot = spawn_sequence % 5
-		unit.route_id = selected_route if route_id < 0 else clampi(route_id, 0, 2)
-		unit.route = navigation.army_route(unit.route_id, team.base_position.x > MAP_SIZE.x * 0.5)
+		recruit.configure(team, self, unit_data[id])
+		recruit.position = _spawn_point(team)
+		recruit.formation_slot = spawn_sequence % 5
+		recruit.rally_remaining = rules.rally_wait_seconds
+		recruit.move_speed *= rules.army_speed_multiplier
+		recruit.route_id = route_id
+		recruit.route = navigation.army_route(route_id, team.base_position.x > MAP_SIZE.x * 0.5)
 		team.combat_count += 1
-		unit.died.connect(_on_recruit_died)
-		entities.add_child(unit)
+	recruit.died.connect(_on_recruit_died)
+	entities.add_child(recruit)
 	if feedback:
 		notify("RECRUITED", ["UNIT_" + String(id).to_upper()])
-		AudioFeedback.play(&"purchase")
+		play_sound(&"purchase")
 	return true
 
 
 func _spawn_worker(team: GameTeam) -> void:
-	var worker = WORKER_SCENE.instantiate()
+	var worker = catalog.worker_scene.instantiate()
 	worker.configure(team, self)
 	worker.position = _spawn_point(team) + Vector2(0, 65)
 	team.worker_count += 1
@@ -254,7 +354,7 @@ func _on_recruit_died(entity: CombatEntity) -> void:
 		entity.team.combat_count -= 1
 
 
-func purchase_upgrade(team_id: int, id: StringName, feedback: bool = true) -> bool:
+func _purchase_upgrade(team_id: int, id: StringName, feedback: bool = true) -> bool:
 	if match_finished or get_tree().paused:
 		return false
 	var team: GameTeam = team_by_id(team_id)
@@ -265,7 +365,7 @@ func purchase_upgrade(team_id: int, id: StringName, feedback: bool = true) -> bo
 			var success: bool = team.upgrade(definition)
 			if feedback:
 				if success:
-					AudioFeedback.play(&"purchase")
+					play_sound(&"purchase")
 				notify(
 					(
 						"UPGRADED"
@@ -281,32 +381,36 @@ func _on_king_died(entity: CombatEntity) -> void:
 	if match_finished:
 		return
 	match_finished = true
+	session.finish()
 	var winner: CombatEntity = enemy_king(entity.team.team_id)
 	var winner_id: int = winner.team.team_id if winner != null else 0
 	winning_team_id = winner_id
-	AudioFeedback.play(&"victory" if winner_id == player.team.team_id else &"defeat")
+	play_sound(&"victory" if winner_id == player.team.team_id else &"defeat")
 	get_tree().paused = true
+	if tutorial != null:
+		tutorial.stage = TutorialDirector.Stage.COMPLETE
+	session.publish({"type": "match_end", "team": winner_id})
 	match_ended.emit(winner_id)
 
 
 func notify(key: String, arguments: Array = []) -> void:
 	if key in ["UNIT_CAP", "INSUFFICIENT_GOLD", "INSUFFICIENT_WOOD", "BUILD_UNAVAILABLE"]:
-		AudioFeedback.play(&"failed")
-	hud.notify(key, arguments)
+		play_sound(&"failed")
+	if hud != null:
+		hud.notify(key, arguments)
 
 
 func _create_pads() -> void:
 	for team in teams:
 		var mirror: bool = team.base_position.x > MAP_SIZE.x * 0.5
-		var points := [Vector2(750, 1250), Vector2(1090, 900), Vector2(1090, 1770)]
+		var points := map_definition.home_pads
 		for index in range(points.size()):
 			var point: Vector2 = points[index]
 			if mirror:
 				point.x = MAP_SIZE.x - point.x
 			_add_pad(point, "PAD_" + ("EMBER" if mirror else "AZURE") + "_" + ["GATE", "PINE", "WOOD"][index], team.team_id if index == 0 else 0)
-	_add_pad(Vector2(2300, 810), "PAD_NORTH", 0)
-	_add_pad(Vector2(2300, 1570), "PAD_CENTER", 0)
-	_add_pad(Vector2(2300, 2070), "PAD_SOUTH", 0)
+	for index in range(map_definition.neutral_pads.size()):
+		_add_pad(map_definition.neutral_pads[index], ["PAD_NORTH", "PAD_CENTER", "PAD_SOUTH"][index], 0)
 
 func _add_pad(point: Vector2, title: String, home_id: int) -> void:
 	var pad = PAD_SCRIPT.new()
@@ -331,7 +435,7 @@ func nearest_pad(commander):
 func pad_access(commander, pad) -> bool:
 	return not match_finished and not get_tree().paused and is_instance_valid(commander) and commanders.has(commander) and commander.alive and is_instance_valid(pad) and pads.has(pad) and commander.global_position.distance_to(pad.global_position) <= balance.build_reach and navigation.clear_line(commander.global_position, pad.global_position)
 
-func build_tower(commander, pad) -> bool:
+func _build_tower(commander, pad) -> bool:
 	if not pad_access(commander, pad) or pad.occupied() or pad.rebuild_remaining > 0:
 		return false
 	if pad.home_team_id != 0 and pad.home_team_id != commander.team.team_id:
@@ -346,12 +450,12 @@ func build_tower(commander, pad) -> bool:
 	tower.died.connect(pad.released)
 	entities.add_child(tower)
 	spawn_effect(tower.position, tower.team.color, "build")
-	AudioFeedback.play(&"tower_build", tower.position)
+	play_sound(&"tower_build", tower.position)
 	if commander.human_controlled:
 		notify("TOWER_CONSTRUCTED", [pad.pad_name])
 	return true
 
-func upgrade_tower(commander, pad) -> bool:
+func _upgrade_tower(commander, pad) -> bool:
 	if not pad_access(commander, pad) or not pad.occupied():
 		return false
 	var tower = pad.tower
@@ -362,13 +466,15 @@ func upgrade_tower(commander, pad) -> bool:
 		return false
 	tower.apply_upgrade()
 	spawn_effect(tower.position, tower.team.color, "upgrade")
-	AudioFeedback.play(&"tower_upgrade", tower.position)
+	play_sound(&"tower_upgrade", tower.position)
 	if commander.human_controlled:
 		notify("TOWER_UPGRADED")
 	return true
 
 
 func spawn_effect(point: Vector2, tint: Color, type: String) -> void:
+	if not presentation_enabled:
+		return
 	# A fixed visual budget protects burst recruitment and simultaneous battles.
 	# Crown destruction must remain visible even when the ordinary budget is full.
 	if effect_count >= MAX_EFFECTS and type != "crownfall":
@@ -381,16 +487,18 @@ func spawn_effect(point: Vector2, tint: Color, type: String) -> void:
 	effect.tree_exited.connect(func(): effect_count -= 1)
 	add_child(effect)
 
-func launch_projectile(team_id: int, start: Vector2, aim: Vector2, damage: float, structure_multiplier: float) -> void:
+func launch_projectile(team_id: int, start: Vector2, aim: Vector2, damage: float, structure_multiplier: float, commander_id: int = 0) -> void:
 	var projectile = PROJECTILE_SCRIPT.new()
-	projectile.configure(self, team_id, start, aim, damage, structure_multiplier)
+	projectile.configure(self, team_id, start, aim, damage, structure_multiplier, commander_id)
 	entities.add_child(projectile)
 
 
-func _physics_process(_delta: float) -> void:
+func rebuild_spatial() -> void:
 	# One shared broad phase avoids a full-tree scan per moving actor per frame.
 	spatial.clear()
-	for entity in get_tree().get_nodes_in_group("combatants"):
+	for entity in session.actors.values():
+		if not is_instance_valid(entity) or not entity.alive or entity.is_queued_for_deletion():
+			continue
 		var cell := Vector2i((entity.position / 100.0).floor())
 		if not spatial.has(cell):
 			spatial[cell] = []
@@ -413,5 +521,16 @@ func separation_for(entity: CombatEntity) -> Vector2:
 
 
 func select_route(index: int) -> void:
-	selected_route = clampi(index, 0, 2)
+	selected_route = clampi(index, 0, navigation.lanes.size() - 1)
+	session.publish({"type": "route_selected", "team": player.team.team_id, "route": selected_route})
 	route_highlight = 3.0
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_GO_BACK_REQUEST and is_instance_valid(hud):
+		var event := InputEventAction.new()
+		event.action = &"pause_match"
+		event.pressed = true
+		hud._unhandled_input(event)
+	elif what == NOTIFICATION_APPLICATION_FOCUS_OUT:
+		if is_instance_valid(session) and session.state == MatchSession.State.RUNNING and presentation_enabled and is_instance_valid(hud):
+			hud._toggle_pause()

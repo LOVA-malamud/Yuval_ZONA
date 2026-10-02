@@ -74,6 +74,32 @@ pause_match={
 ]
 }
 
+
+rally={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":81)]
+}
+
+regroup={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":82)]
+}
+
+route_north={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":49)]
+}
+
+route_center={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":50)]
+}
+
+route_south={
+"deadzone": 0.2,
+"events": [Object(InputEventKey,"physical_keycode":51)]
+}
+
 [rendering]
 
 renderer/rendering_method="gl_compatibility"

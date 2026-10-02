@@ -3,6 +3,7 @@ extends Resource
 ## Shared immutable starting values. Each entity copies these when spawned.
 
 @export var id: StringName = &"melee"
+@export var tactical_role: StringName = &"melee"
 @export var display_name: String = "UNIT_MELEE"
 @export var money_cost: int = 50
 @export var max_health: float = 110.0

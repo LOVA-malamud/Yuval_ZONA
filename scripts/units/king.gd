@@ -7,6 +7,7 @@ var last_alarm: float = -20.0
 
 
 func _ready() -> void:
+	category = &"structure"
 	super._ready()
 	kind = &"king"
 	body_radius = 32.0
@@ -25,7 +26,7 @@ func _apply_upgrades() -> void:
 	queue_redraw()
 
 
-func _physics_process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
 	if not alive:
 		return
 	tick(delta)
@@ -46,21 +47,25 @@ func _draw() -> void:
 		)
 	super._draw()
 
-func take_damage(amount: float, attacker_team_id: int) -> void:
+func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0) -> void:
+	if game.tutorial != null and team.team_id == 2 and game.tutorial.stage != TutorialDirector.Stage.KING:
+		return
 	if not alive or not team.is_enemy(attacker_team_id) or amount <= 0:
 		return
 	recent_damage += amount
 	damage_window = 6.0
-	super.take_damage(amount, attacker_team_id)
+	super.take_damage(amount, attacker_team_id, source_commander_id)
 	if alive and (recent_damage >= max_health * 0.07 or health < max_health * 0.35):
 		danger_remaining = 6.0
+		if game.coordination != null:
+			game.coordination.alert(&"king_danger", team.team_id, position)
 		if game.match_seconds - last_alarm > 15.0:
 			last_alarm = game.match_seconds
 			if team == game.player.team:
-				AudioFeedback.play(&"king_warning")
+				game.play_sound(&"king_warning")
 				game.notify("KING_DANGER")
 
 func die() -> void:
-	AudioFeedback.play(&"king_death")
+	game.play_sound(&"king_death")
 	game.spawn_effect(position, team.color, "crownfall")
 	super.die()

@@ -35,6 +35,7 @@ var variation := RandomNumberGenerator.new()
 var synthesis_microseconds: int = 0
 var played_count: int = 0
 var suppressed_count: int = 0
+var playback_generation: int = 0
 
 
 func _ready() -> void:
@@ -105,7 +106,7 @@ func play(event: StringName, world_position: Vector2 = Vector2.INF) -> bool:
 	# Four reserved voices let warnings/results remain audible over ordinary combat.
 	for index in range(MAX_VOICES if priority >= 3 else AMBIENT_VOICES):
 		var voice: AudioStreamPlayer = voices[index]
-		if not voice.playing:
+		if not voice.playing and not voice.get_meta("pending", false):
 			selected = voice
 			break
 		if priority >= 3 and int(voice.get_meta("priority")) < lowest_priority:
@@ -115,16 +116,30 @@ func play(event: StringName, world_position: Vector2 = Vector2.INF) -> bool:
 		suppressed_count += 1
 		return false
 	selected.stop()
+	var voice_generation: int = int(selected.get_meta("start_generation", 0)) + 1
+	selected.set_meta("start_generation", voice_generation)
 	selected.stream = streams[event]
 	selected.volume_db = float(cue[3]) + linear_to_db(gain)
 	selected.pitch_scale = variation.randf_range(0.96, 1.04) if priority < 3 else 1.0
 	selected.set_meta("priority", priority)
-	selected.play()
+	# Starts scheduled earlier in this frame must not survive stop/restart/quit.
+	# In particular, rapid play/stop with a headless audio driver can otherwise
+	# leave mixer-owned WAV playback references alive during engine shutdown.
+	selected.set_meta("pending", true)
+	_start_voice.call_deferred(selected, playback_generation, voice_generation)
 	last_played[event] = now
 	if combat:
 		last_combat_time = now
 	played_count += 1
 	return true
+
+func _start_voice(voice: AudioStreamPlayer, generation: int, voice_generation: int) -> void:
+	if generation != playback_generation or not is_instance_valid(voice) or not is_inside_tree():
+		return
+	if int(voice.get_meta("start_generation", -1)) != voice_generation:
+		return
+	voice.set_meta("pending", false)
+	voice.play()
 
 
 func _distance_gain(point: Vector2) -> float:
@@ -146,7 +161,11 @@ func bind_button(button: BaseButton) -> void:
 
 
 func stop_all() -> void:
+	playback_generation += 1
 	for voice in voices:
+		voice.set_meta("pending", false)
+		if voice.has_stream_playback():
+			voice.get_stream_playback().stop()
 		voice.stop()
 		voice.stream = null
 	last_played.clear()

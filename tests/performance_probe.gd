@@ -84,7 +84,7 @@ func _run() -> void:
 		RenderingServer.force_draw()
 		var picture := root.get_texture().get_image()
 		picture.save_png("res:/" + "/tests/artifacts/performance_%s_%s.png" % [label, dimensions])
-		if picture.get_size() != root.size:
+		if picture.get_size() != Vector2i(int(size_parts[0]), int(size_parts[1])):
 			push_error("Incorrect rendered performance dimensions")
 			quit(1)
 			return
@@ -96,9 +96,9 @@ func _run() -> void:
 	for key in samples:
 		var values: Array = samples[key]
 		values.sort()
-		summary[key] = {"mean": totals[key] / values.size(), "p95": values[mini(values.size() - 1, int(values.size() * 0.95))], "max": maxima[key]}
+		summary[key] = {"mean": totals[key] / values.size(), "p50": values[int(values.size() * 0.5)], "p95": values[mini(values.size() - 1, int(values.size() * 0.95))], "max": maxima[key]}
 	var elapsed := (Time.get_ticks_usec() - start) / 1000000.0
-	var report := {"mode": mode, "label": label, "resolution": dimensions, "godot": Engine.get_version_info().string, "renderer": RenderingServer.get_current_rendering_method(), "os": OS.get_name(), "sample_count": sample_count, "elapsed_wall_seconds": elapsed, "sample_seconds": sample_seconds, "warmup_seconds": WARMUP_SECONDS, "metrics": summary, "initial_memory_mb": initial_memory / 1048576.0, "final_memory_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, "initial_nodes": initial_nodes, "final_nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT), "combatants": get_nodes_in_group("combatants").size(), "runtime_samples": runtime_samples, "simulated_seconds": game.match_seconds, "total_damage_taken": _total_damage_taken(), "fixture": "80 troops, 20 workers, 9 towers, 4 commanders, 2 Kings; three mixed-role battles; fixed seed 67231; fixture durability increased to sustain load; no balance inference"}
+	var report := {"mode": mode, "label": label, "resolution": dimensions, "godot": Engine.get_version_info().string, "renderer": RenderingServer.get_current_rendering_method(), "os": OS.get_name(), "sample_count": sample_count, "elapsed_wall_seconds": elapsed, "sample_seconds": sample_seconds, "warmup_seconds": WARMUP_SECONDS, "metrics": summary, "initial_memory_mb": initial_memory / 1048576.0, "final_memory_mb": Performance.get_monitor(Performance.MEMORY_STATIC) / 1048576.0, "initial_nodes": initial_nodes, "final_nodes": Performance.get_monitor(Performance.OBJECT_NODE_COUNT), "combatants": get_nodes_in_group("combatants").size(), "projectiles": get_nodes_in_group("projectiles").size(), "runtime_samples": runtime_samples, "simulated_seconds": game.match_seconds, "total_damage_taken": _total_damage_taken(), "fixture": "80 troops, 20 workers, 9 towers, 4 commanders, 2 Kings; three mixed-role battles; fixed seed 67231; fixture durability increased to sustain load; no balance inference"}
 	if mode != "headless":
 		report["fps_from_mean_frame"] = 1000.0 / summary.frame_ms.mean
 	var output := FileAccess.open("res:/" + "/tests/artifacts/performance_%s_%s_%s.json" % [label, mode, dimensions], FileAccess.WRITE)
@@ -150,37 +150,22 @@ func _setup_capacity() -> void:
 	game.commanders[2].position = Vector2(2490, 1430)
 	game.commanders[3].position = Vector2(2500, 2070)
 	game.player.get_node("Camera2D").reset_smoothing()
-	game._physics_process(STEP)
+	game.rebuild_spatial()
 
 func _headless() -> void:
 	for step in range(int((WARMUP_SECONDS + sample_seconds) / STEP)):
 		var collecting: bool = step >= int(WARMUP_SECONDS / STEP)
 		var start := Time.get_ticks_usec()
-		game._process(STEP)
-		game._physics_process(STEP)
-		game.get_node("EconomyManager")._process(STEP)
-		for pad in game.pads:
-			pad._process(STEP)
+		game.session.step()
 		var after_world := Time.get_ticks_usec()
-		for commander in game.commanders:
-			if commander.controller.has_method("_process"):
-				commander.controller._process(STEP)
-			commander._physics_process(STEP)
-		var after_ai := Time.get_ticks_usec()
-		for entity in get_nodes_in_group("combatants"):
-			if entity.kind != &"player" and not entity.is_queued_for_deletion():
-				entity._physics_process(STEP)
-		var after_units := Time.get_ticks_usec()
 		game.hud._process(STEP)
 		for child in game.get_children():
 			if child.get_script() == load("res://scripts/visuals/battle_effect.gd") and not child.is_queued_for_deletion():
 				child._process(STEP)
 		var after_ui := Time.get_ticks_usec()
 		if collecting:
-			_record("world_ms", (after_world - start) / 1000.0)
-			_record("ai_commanders_ms", (after_ai - after_world) / 1000.0)
-			_record("units_workers_towers_ms", (after_units - after_ai) / 1000.0)
-			_record("hud_effects_ms", (after_ui - after_units) / 1000.0)
+			_record("simulation_ms", (after_world - start) / 1000.0)
+			_record("hud_effects_ms", (after_ui - after_world) / 1000.0)
 			_record("total_script_ms", (after_ui - start) / 1000.0)
 			sample_count += 1
 		if step % 60 == 0:

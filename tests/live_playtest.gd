@@ -62,6 +62,7 @@ func _run() -> void:
 	var enemy = game.UNIT_SCENE.instantiate()
 	enemy.configure(game.teams[1],game,game.unit_data[&"tank"])
 	enemy.position = game.player.position+Vector2(50,0)
+	enemy.practice_unit = true
 	enemy.process_mode = Node.PROCESS_MODE_DISABLED
 	game.entities.add_child(enemy)
 	var enemy_hp: float = enemy.health
@@ -69,7 +70,43 @@ func _run() -> void:
 	await get_tree().create_timer(0.15).timeout
 	Input.action_release("attack")
 	check(enemy.health < enemy_hp,"SPACE input attacks enemy")
+	await click_at(game.player.get_canvas_transform() * enemy.position)
+	check(game.player.controller.focus_target == enemy, "Mouse selects a visible enemy as focus target")
+	enemy.position += Vector2(1000, 0)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	check(game.player.controller.focus_target == null, "Focus clears after target leaves detection range")
 	enemy.free()
+	var recruit = null
+	for actor in game.session.actors.values():
+		if actor.category == &"army" and actor.team == game.player.team:
+			recruit = actor
+			break
+	recruit.position = game.player.position + Vector2(80, 0)
+	var rally := InputEventAction.new()
+	rally.action = "rally"
+	rally.pressed = true
+	get_viewport().push_input(rally, true)
+	await get_tree().create_timer(0.1).timeout
+	check(recruit.rally_buff > 7 and game.player.rally_cooldown > 29, "Rally input buffs nearby recruit and starts cooldown")
+	var regroup := InputEventAction.new()
+	regroup.action = "regroup"
+	regroup.pressed = true
+	get_viewport().push_input(regroup, true)
+	await get_tree().create_timer(0.1).timeout
+	check(recruit.regroup_remaining > 7, "Regroup input gives temporary local movement order")
+	await click_control(find_button(game.hud.controls, "COMMAND_BUTTON"))
+	check(game.hud.command_panel.visible, "Mouse opens ally command panel")
+	await click_control(game.hud.command_panel.order_selector)
+	var order_popup: PopupMenu = game.hud.command_panel.order_selector.get_popup()
+	for attempt in range(8):
+		if order_popup.get_focused_item() == 4:
+			break
+		await key_event(KEY_DOWN, order_popup)
+	await key_event(KEY_ENTER, order_popup)
+	await get_tree().create_timer(0.1).timeout
+	check(game.commanders[1].controller.order == &"defend", "Native dropdown sends persistent Defend ally order")
+	await click_control(find_button(game.hud.command_panel, "COMMAND_CLOSE"))
 	game.player.position = game.pads[0].position+Vector2(-45,0)
 	await get_tree().create_timer(0.2).timeout
 	await click_control(game.hud.structure_button)
@@ -144,6 +181,14 @@ func _run() -> void:
 	Input.parse_input_event(escape)
 	await get_tree().process_frame
 	check(not get_tree().paused,"Escape resumes")
+	game.player.controller.touch_index = 7
+	game.player.controller.touch_direction = Vector2.RIGHT
+	game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
+	await get_tree().process_frame
+	check(get_tree().paused and game.player.controller.touch_index == -1, "Application focus loss pauses and clears held touch input")
+	game.notification(MainLoop.NOTIFICATION_WM_GO_BACK_REQUEST)
+	await get_tree().process_frame
+	check(not get_tree().paused, "System Back resumes paused match")
 	game.hud._restart()
 	await get_tree().process_frame
 	await get_tree().process_frame

@@ -9,7 +9,7 @@ func _run() -> void:
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
 	for entity in get_nodes_in_group("combatants"):
-		entity.remove_from_group("combatants")
+		game.session.unregister_actor(entity)
 	for team in game.teams:
 		for lane in range(3):
 			for type in [&"melee", &"ranged", &"tank"]:
@@ -18,12 +18,12 @@ func _run() -> void:
 				unit.position = team.spawn_position
 				unit.route = game.navigation.army_route(lane, team.team_id == 2)
 				game.entities.add_child(unit)
-				unit.remove_from_group("combatants")
+				game.session.unregister_actor(unit)
 				var elapsed: float = 0.0
 				var destination: Vector2 = unit.route[-1]
 				while elapsed < 100.0 and unit.position.distance_to(destination) > 75.0:
-					unit._physics_process(0.05)
-					elapsed += 0.05
+					unit.step_gameplay(1.0 / 60.0)
+					elapsed += 1.0 / 60.0
 					if not game.navigation.walkable(unit.position, unit.body_radius - 0.1):
 						failures += 1
 						break

@@ -1,0 +1,18 @@
+name: Verify Crownfront
+on: [push, pull_request]
+jobs:
+  fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: chickensoft-games/setup-godot@v2
+        with:
+          version: 4.7.2
+          use-dotnet: false
+          include-templates: false
+      - run: python3 tests/verify.py --suite fast
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: verification
+          path: tests/artifacts/verification

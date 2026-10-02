@@ -5,6 +5,7 @@
 [resource]
 script = ExtResource("1")
 id = &"ranged"
+tactical_role = &"ranged"
 display_name = "UNIT_RANGED"
 money_cost = 75
 max_health = 70.0

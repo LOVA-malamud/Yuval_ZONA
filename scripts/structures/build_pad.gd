@@ -9,7 +9,7 @@ var rebuild_remaining: float = 0.0
 func _ready() -> void:
 	add_to_group("build_pads")
 
-func _process(delta: float) -> void:
+func step_gameplay(delta: float) -> void:
 	rebuild_remaining = maxf(0.0, rebuild_remaining - delta)
 	queue_redraw()
 

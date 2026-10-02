@@ -14,28 +14,30 @@ const OBSTACLES: Array[Rect2] = [
 	Rect2(650, 1900, 290, 280), Rect2(3660, 1900, 290, 280),
 ]
 var grid := AStarGrid2D.new()
-var lanes: Array[PackedVector2Array] = [
-	PackedVector2Array([Vector2(400,1300), Vector2(1000,1100), Vector2(1550,550), Vector2(2300,700), Vector2(3050,550), Vector2(3600,1100), Vector2(4200,1300)]),
-	PackedVector2Array([Vector2(400,1300), Vector2(1000,1400), Vector2(1550,1250), Vector2(2300,1470), Vector2(3050,1250), Vector2(3600,1400), Vector2(4200,1300)]),
-	PackedVector2Array([Vector2(400,1300), Vector2(1000,1600), Vector2(1550,2050), Vector2(2300,1950), Vector2(3050,2050), Vector2(3600,1600), Vector2(4200,1300)]),
-]
+var lanes: Array[PackedVector2Array] = []
+var bounds := SIZE
+var obstacles: Array[Rect2] = []
 
-func _init() -> void:
-	grid.region = Rect2i(0, 0, 92, 52)
+func _init(definition: MapDefinition = null) -> void:
+	var resolved := definition if definition != null else MapDefinition.new()
+	bounds = resolved.bounds
+	obstacles = resolved.obstacles.duplicate()
+	lanes = resolved.routes.duplicate()
+	grid.region = Rect2i(Vector2i.ZERO, Vector2i((bounds / CELL).ceil()))
 	grid.cell_size = Vector2.ONE * CELL
 	grid.offset = Vector2.ONE * CELL * 0.5
 	grid.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_ONLY_IF_NO_OBSTACLES
 	grid.update()
-	for x in range(92):
-		for y in range(52):
+	for x in range(grid.region.size.x):
+		for y in range(grid.region.size.y):
 			var p := Vector2(x + 0.5, y + 0.5) * CELL
 			if not walkable(p, 28.0):
 				grid.set_point_solid(Vector2i(x, y))
 
 func walkable(point: Vector2, radius: float = 0.0) -> bool:
-	if not Rect2(Vector2.ONE * radius, SIZE - Vector2.ONE * radius * 2.0).has_point(point):
+	if not Rect2(Vector2.ONE * radius, bounds - Vector2.ONE * radius * 2.0).has_point(point):
 		return false
-	for obstacle in OBSTACLES:
+	for obstacle in obstacles:
 		if obstacle.grow(radius).has_point(point):
 			return false
 	return true
@@ -43,7 +45,7 @@ func walkable(point: Vector2, radius: float = 0.0) -> bool:
 func clear_line(start: Vector2, finish: Vector2, radius: float = 0.0) -> bool:
 	var minimum: Vector2 = start.min(finish)
 	var maximum: Vector2 = start.max(finish)
-	for obstacle in OBSTACLES:
+	for obstacle in obstacles:
 		var box: Rect2 = obstacle.grow(radius)
 		# Most local movement/attack segments are nowhere near an obstacle. Reject
 		# their bounds before allocating corners and running exact edge tests.
@@ -87,7 +89,7 @@ func path(start: Vector2, finish: Vector2) -> PackedVector2Array:
 	return points
 
 func _open_cell(point: Vector2) -> Vector2i:
-	var cell := Vector2i((point / CELL).floor()).clamp(Vector2i.ZERO, Vector2i(91, 51))
+	var cell := Vector2i((point / CELL).floor()).clamp(Vector2i.ZERO, grid.region.size - Vector2i.ONE)
 	if not grid.is_point_solid(cell):
 		return cell
 	for radius in range(1, 12):
@@ -99,7 +101,7 @@ func _open_cell(point: Vector2) -> Vector2i:
 	return cell
 
 func army_route(lane: int, reverse: bool) -> PackedVector2Array:
-	var route: PackedVector2Array = lanes[clampi(lane, 0, 2)].duplicate()
+	var route: PackedVector2Array = lanes[clampi(lane, 0, lanes.size() - 1)].duplicate()
 	if reverse:
 		route.reverse()
 	return route
