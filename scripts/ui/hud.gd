@@ -294,6 +294,12 @@ func _build_structure_panel() -> void:
 	structure_panel.offset_right = 292
 	structure_panel.offset_top = -100
 	structure_panel.offset_bottom = 62
+	if game.force_touch_controls or DisplayServer.is_touchscreen_available():
+		structure_panel.set_anchors_and_offsets_preset(Control.PRESET_TOP_LEFT)
+		structure_panel.offset_left = 24
+		structure_panel.offset_right = 292
+		structure_panel.offset_top = 144
+		structure_panel.offset_bottom = 310
 	var column := VBoxContainer.new()
 	structure_panel.add_child(column)
 	structure_label = _label("", 15)

@@ -10,7 +10,9 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 - Melee, ranged, and tank roles with distinct battlefield behavior
 - Nine build pads and three-level Guard Towers
 - King and Economy upgrade tracks
-- Strategic minimap, responsive HUD, contextual onboarding, and pause/settings UI
+- Persistent ally orders, visible spending/plans, local Rally and Regroup commands
+- Focus targeting, battle alerts, strategic minimap and responsive HUD
+- Playable tutorial, match recap and Easy/Standard/Hard AI behavior
 - Procedural visuals and original synthesized sound effects
 - English and Russian localization with persistent preferences
 
@@ -22,11 +24,15 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | Hold `Space` | Attack a nearby enemy |
 | `E` near a King or build pad | Open the relevant interaction |
 | Mouse wheel | Zoom the battlefield camera |
-| Route selector | Choose North, Center, or South for new recruits |
+| `1` / `2` / `3` or route selector | North / Center / South for new recruits |
+| Click an enemy | Focus attacks on that visible target |
+| `Q` / Rally button | Buff nearby allied troops for 8 seconds |
+| `R` / Regroup button | Temporarily gather nearby allied troops |
+| Orders button | Set the ally commander’s order and review shared spending |
 | Army / King / Economy tabs | Recruit units and buy shared upgrades |
 | `Escape` | Pause, close the active panel, or resume |
 
-On a touchscreen, drag from the left side to move. The commander attacks nearby enemies while a movement touch is held. Use the on-screen Interact button near your King or a build pad. Commander strikes have a brief wind-up, and ranged shots travel toward the position aimed at when fired, so movement can avoid both. These touch controls are an initial mobile input pass; device layout and thumb comfort still need testing on phones.
+On a touchscreen, drag from the left side to move. The commander attacks nearby enemies while a movement touch is held. Tap a visible enemy to focus attacks. Use the on-screen Rally, Regroup, Orders and Interact buttons. Interact works near your King or a build pad. Commander strikes have a brief wind-up, and ranged shots travel toward the position aimed at when fired, so movement can avoid both. These touch controls are an initial mobile input pass; device layout and thumb comfort still need testing on phones.
 
 ## Text-only game lab
 
@@ -58,15 +64,15 @@ To watch an AI match live with full game graphics instead:
 python3 tests/run_lab.py --suite matches --watch baseline --seeds 42
 ```
 
-The optional in-game **How to Play** guide explains the objective, unit roles, routes, workers, towers, upgrades, and minimap.
+Start **Tutorial** from Pause for a separate guided match; it can be restarted or skipped. **How to Play** includes a coordination reference. See the [player guide](docs/player-guide.md) for tactical commands.
 
 ## Languages and settings
 
-The full interface supports **English** and **Русский**. Fresh installations begin in English. Language, Master/SFX volume, fullscreen mode, and onboarding preferences apply immediately and persist between launches.
+The full interface supports **English** and **Русский**. Fresh installations begin in English. Language, Master/SFX volume, fullscreen mode, and onboarding preferences apply immediately and persist between launches. Difficulty persists and applies to the next match; it changes AI behavior while preserving equal starting resources and unit stats.
 
 ## Run from source
 
-1. Install **Godot 4.6.2 Standard**.
+1. Install **Godot 4.7.2 Standard**.
 2. Clone this repository.
 3. Import [project.godot](project.godot) in Godot.
 4. Press **F5** to run the main project.
@@ -75,7 +81,7 @@ The project uses GDScript and Godot's Compatibility renderer. It has no external
 
 ## Builds and platform status
 
-A universal macOS export was produced with the official Godot 4.6.2 templates and validated on an Intel Mac using the x86_64 slice. The Apple Silicon slice is present but was not run on Apple Silicon hardware. Windows and Linux builds have not been tested. Generated archives are intentionally excluded from source control.
+A universal macOS export was produced with the official Godot 4.6.2 templates and validated on an Intel Mac using the x86_64 slice. The Apple Silicon slice is present but was not run on Apple Silicon hardware. That is historical export evidence; this overhaul uses Godot 4.7.2 and tests native Linux source execution. New platform packages have not been produced. Generated archives are intentionally excluded from source control.
 
 To create a macOS archive with matching export templates:
 
@@ -87,6 +93,14 @@ The packaging script stages production files only, adds Godot and project-asset 
 
 ## Project status
 
-This repository contains the completed **pre-playtest final polish** milestone. The current feature set, automated regressions, performance stress scenarios, bilingual layouts, complete simulated matches, and a native macOS export were verified before publication. Competitive balance, subjective audio feel, onboarding clarity, and dense-combat readability now require real human playtesting.
+The command-and-coordination overhaul is developed on `feat/command-and-coordination-overhaul`. It retains the two-team King objective, four commanders, three lanes, three troop roles, shared economy and procedural art.
 
-Detailed evidence and limitations are recorded in [docs/verification.md](docs/verification.md). Supporting reports cover [performance](docs/performance-polish.md), [localization and onboarding](docs/localization-polish.md), [regression review](docs/regression-polish.md), and [macOS packaging](docs/export-polish.md).
+Run isolated verification without modifying your preferences:
+
+```sh
+python3 tests/verify.py --suite fast
+python3 tests/verify.py --suite desktop
+python3 tests/verify.py --suite full
+```
+
+CI runs the fast suite with Godot 4.7.2. Desktop checks require a display; full matches are headless. The [contributor guide](docs/contributor-guide.md) explains the session, commands, resources and scenario lab. Overhaul evidence and remaining acceptance work are tracked in [overhaul verification](docs/overhaul-verification.md). The earlier [polish verification](docs/verification.md) and its platform reports remain historical evidence.

@@ -17,6 +17,7 @@ func _run() -> void:
 	game.presentation_enabled = false
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	root.add_child(game)
+	check(Engine.physics_ticks_per_second == 60, "Production physics clock is pinned to 60 Hz")
 	check(game.hud == null and game.effect_count == 0 and game.get_node_or_null("Battlefield") == null, "Presentation-disabled session owns no HUD, effects or battlefield")
 	var results := {}
 	game.session.command_completed.connect(func(id, result): results[id] = result)

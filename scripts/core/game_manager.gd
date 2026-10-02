@@ -91,6 +91,17 @@ func _apply_simulation_config() -> void:
 
 
 func _ready() -> void:
+	if catalog == null or map_definition == null or rules == null:
+		push_error("Match is missing catalog, map or rules")
+		queue_free()
+		return
+	var definition_errors := catalog.validation_errors()
+	definition_errors.append_array(map_definition.validation_errors())
+	definition_errors.append_array(rules.validation_errors())
+	if not definition_errors.is_empty():
+		push_error("Invalid match definitions: " + "; ".join(definition_errors))
+		queue_free()
+		return
 	_apply_simulation_config()
 	session = MatchSession.new()
 	add_child(session)

@@ -105,7 +105,10 @@ func _run() -> void:
 	print("VERIFIED PIXELS ",captured.get_size())
 	print("CAPTURE ", file, " error=", error)
 	# Every visible control must fit inside the viewport.
-	var problems: int = _check_layout(game.hud.controls, capture_viewport.get_visible_rect())
+	var layout_bounds: Rect2 = game.safe_area_override if game.safe_area_override.has_area() else capture_viewport.get_visible_rect()
+	var problems: int = _check_layout(game.hud.controls, layout_bounds)
+	if game.force_touch_controls:
+		problems += _check_touch_targets(game.hud.controls)
 	print("LAYOUT problems=", problems)
 	root.get_node("AudioFeedback").stop_all()
 	await create_timer(0.1, true).timeout
@@ -119,4 +122,18 @@ func _check_layout(node: Node, bounds: Rect2) -> int:
 			problems += 1
 	for child in node.get_children():
 		problems += _check_layout(child, bounds)
+	return problems
+
+func _check_touch_targets(node: Node) -> int:
+	var problems := 0
+	if node is BaseButton and node.is_visible_in_tree() and (node.size.x < 48 or node.size.y < 48):
+		push_error("Touch target smaller than 48: %s %s" % [node.name, node.size])
+		problems += 1
+	if node is TabBar and node.is_visible_in_tree():
+		for index in range(node.tab_count):
+			if node.get_tab_rect(index).size.y < 48:
+				push_error("Touch tab smaller than 48")
+				problems += 1
+	for child in node.get_children():
+		problems += _check_touch_targets(child)
 	return problems

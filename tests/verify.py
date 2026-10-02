@@ -12,6 +12,7 @@ import subprocess
 import tempfile
 import time
 import io
+import hashlib
 import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -39,7 +40,7 @@ def diagnostics(log: str, fixture: str) -> list[str]:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--suite", choices=("fast", "full", "baseline", "desktop", "tuning"), default="fast")
+    parser.add_argument("--suite", choices=("fast", "full", "baseline", "desktop", "touch", "paired", "tuning"), default="fast")
     parser.add_argument("--godot", default=shutil.which("godot"))
     parser.add_argument("--output", type=Path, default=ROOT / "tests/artifacts/verification")
     parser.add_argument("--fixture", help="Run one named regression for diagnosis")
@@ -65,6 +66,12 @@ def main() -> int:
             shutil.copytree(ROOT, stage, ignore=shutil.ignore_patterns(
                 ".git", ".godot", ".aws", ".codex", "artifacts", "builds", "__pycache__"))
         (stage / "tests/artifacts").mkdir(exist_ok=True)
+        digest = hashlib.sha256()
+        for directory in ("scripts", "resources", "scenes", "localization"):
+            for path in sorted((stage / directory).rglob("*")):
+                if path.is_file() and path.suffix in (".gd", ".tres", ".tscn"):
+                    digest.update(str(path.relative_to(stage)).encode())
+                    digest.update(path.read_bytes())
         env = os.environ.copy()
         for name in ("XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
             env[name] = str(Path(temporary) / name.lower())
@@ -115,6 +122,12 @@ def main() -> int:
                 if (stage / "tests/artifacts/pacing.json").exists():
                     run("pacing_replay", ["python3", "tests/validate_replay.py", "tests/artifacts/pacing.json"])
                     run("pacing_selection", ["python3", "tests/select_pacing.py", "tests/artifacts/pacing.json", "--output", "tests/artifacts/pacing_selection.json"])
+            if args.suite == "paired" and all(check["passed"] for check in checks):
+                run("paired_matches", ["python3", "tests/run_lab.py", "--suite", "matches", "--seeds", "42,43",
+                                       "--jobs", "1", "--godot", args.godot, "--scenarios", "tests/scenarios/assignment_smoke.json",
+                                       "--limit-seconds", "120", "--output", "tests/artifacts/paired.json"], 1200)
+                if (stage / "tests/artifacts/paired.json").exists():
+                    run("paired_replay", ["python3", "tests/validate_replay.py", "tests/artifacts/paired.json"])
             if args.suite == "desktop":
                 run("render_parity", [args.godot, "--path", str(stage), "--script", "tests/render_parity.gd"])
                 for dimensions in ("1280x720", "1280x800", "1920x1080", "1600x720", "1280x960"):
@@ -124,8 +137,13 @@ def main() -> int:
                 run("live_input", [args.godot, "--path", str(stage), "tests/live_playtest.tscn", "--", "finish"])
                 for locale in ("en", "ru"):
                     run(f"visual_cutout_{locale}", [args.godot, "--path", str(stage), "--script", "tests/visual_review.gd", "--", "cutout", "1600x720", locale], 45)
+            if args.suite == "touch":
+                for locale in ("en", "ru"):
+                    for scenario in ("battle", "commands", "tutorial", "victory", "settings", "cutout"):
+                        run(f"touch_{scenario}_{locale}", [args.godot, "--path", str(stage), "--script", "tests/visual_review.gd", "--", scenario, "1600x720", locale], 45)
         shutil.copytree(stage / "tests/artifacts", output / "artifacts", dirs_exist_ok=True)
     summary = dict(suite=args.suite, commit=commit, engine=engine, checks=checks,
+                   source_digest=digest.hexdigest(),
                    passed=all(check["passed"] for check in checks), artifacts=str(output / "artifacts"))
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return 0 if summary["passed"] else 1

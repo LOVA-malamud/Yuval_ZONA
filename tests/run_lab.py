@@ -69,7 +69,7 @@ def run_script(engine: str, script: str, arguments: list[str], real_time: bool =
         raise SystemExit(f"{script} exceeded five wall-clock minutes") from error
     reader.join()
     reports = [line.removeprefix(marker) for line in lines if line.startswith(marker)]
-    if process.returncode or len(reports) != 1 or any("SCRIPT ERROR:" in line for line in lines):
+    if process.returncode or len(reports) != 1 or any("SCRIPT ERROR:" in line or line.startswith("ERROR:") or ("WARNING:" in line and ("leaked" in line or "still in use" in line)) for line in lines):
         print("".join(lines)[-8000:], end="", file=sys.stderr)
         raise SystemExit(f"{script} failed (exit {process.returncode}; {len(reports)} reports).")
     report = json.loads(reports[0])

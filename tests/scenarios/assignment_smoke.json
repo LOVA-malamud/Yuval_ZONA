@@ -1,0 +1,6 @@
+{
+  "version": 1,
+  "scenarios": {
+    "asymmetric_workers": {"teams": {"1": {"workers": 4}}}
+  }
+}

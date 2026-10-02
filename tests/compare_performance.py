@@ -11,6 +11,7 @@ import subprocess
 from statistics import median
 import tarfile
 import tempfile
+import time
 
 from verify import diagnostics
 
@@ -22,8 +23,31 @@ def main():
     parser.add_argument('--baseline', default='707a51a')
     parser.add_argument('--godot', default=shutil.which('godot'))
     parser.add_argument('--output', type=Path, default=ROOT / 'tests/artifacts/performance_overhaul')
+    parser.add_argument('--wait-for-idle', action='store_true', help='Wait for other Godot instances to exit before measuring')
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
+    def godot_running():
+        for path in Path('/proc').iterdir():
+            if path.name.isdigit():
+                try:
+                    if (path / 'comm').read_text().strip() == 'godot':
+                        return True
+                except OSError:
+                    pass
+        return False
+    if args.wait_for_idle:
+        deadline = time.monotonic() + 18000
+        while True:
+            if time.monotonic() > deadline:
+                raise RuntimeError('Other Godot instances did not finish within five hours')
+            if not godot_running():
+                time.sleep(10)
+                if not godot_running():
+                    break
+            time.sleep(10)
+        print('No other Godot instances; starting sequential capacity comparison', flush=True)
+    elif godot_running():
+        raise RuntimeError('Close other Godot instances or use --wait-for-idle')
     reports = []
     for version in ('baseline', 'current'):
         with tempfile.TemporaryDirectory(prefix='crownfront-performance-') as temporary:

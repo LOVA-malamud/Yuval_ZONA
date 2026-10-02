@@ -22,6 +22,19 @@ func _run() -> void:
 	game.rules.worker_cost = 70
 	root.add_child(game)
 	var failures := 0
+	var invalid_catalog: ContentCatalog = game.catalog.duplicate(true)
+	invalid_catalog.units = game.catalog.units.duplicate()
+	invalid_catalog.units.append(game.catalog.units[0])
+	if invalid_catalog.validation_errors().is_empty():
+		failures += 1
+	var invalid_rules := MatchRules.new()
+	invalid_rules.army_speed_multiplier = NAN
+	if invalid_rules.validation_errors().is_empty():
+		failures += 1
+	var invalid_map := MapDefinition.new()
+	invalid_map.routes[0][0] = Vector2(-100, 0)
+	if invalid_map.validation_errors().is_empty():
+		failures += 1
 	if game.MAP_SIZE.x != 4800 or game.navigation.bounds.x != 4800:
 		failures += 1
 	if game.worker_cost != 70:
