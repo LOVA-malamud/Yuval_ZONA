@@ -38,7 +38,7 @@ func _run() -> void:
 				game.session.submit(MatchCommand.new(MatchCommand.Action.RECRUIT, 1, {"id": &"ranged", "route": 1}))
 			if tick in [150, 480, 780]:
 				game.player.cancel_action()
-				game.session.submit(MatchCommand.new(MatchCommand.Action.ABILITY, 1, {"ability_id": [&"dash", &"guard", &"heavy"][[150, 480, 780].find(tick)], "direction": Vector2.RIGHT}))
+				game.session.submit(MatchCommand.new(MatchCommand.Action.ABILITY, 1, {"ability_id": [&"dash", &"guard", &"heavy"][[150, 480, 780].find(tick)]}))
 			if tick == 60:
 				game.session.submit(MatchCommand.new(MatchCommand.Action.RALLY, 1))
 			game.session.step()

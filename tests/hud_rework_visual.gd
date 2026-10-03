@@ -30,7 +30,8 @@ func _run() -> void:
 	if args.size() > 2 and args[2] == "combat":
 		game.player.position = Vector2(2250, 1410)
 		game.commanders[2].position = Vector2(2315, 1410)
-		game.player.activate_ability(&"heavy", Vector2.RIGHT)
+		game.player.facing = Vector2.RIGHT
+		game.player.activate_ability(&"heavy")
 	game.player.get_node("Camera2D").reset_smoothing()
 	await create_timer(0.25).timeout
 	await RenderingServer.frame_post_draw

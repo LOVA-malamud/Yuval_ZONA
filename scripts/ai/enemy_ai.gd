@@ -21,6 +21,7 @@ var reserved_gold: int = 0
 var reserved_wood: int = 0
 var recovering: bool = false
 var ability_timer: float = 0.0
+var pending_ability: Dictionary = {}
 var observed_heavy_id: int = -1
 var reaction_remaining: float = -1.0
 var tower_id: StringName = &"guard"
@@ -141,7 +142,10 @@ func drive(body, delta: float) -> void:
 		recovering = true
 	if recovering and body.health >= body.max_health:
 		recovering = false
+	if not body.valid_enemy(target):
+		pending_ability.clear()
 	if recovering:
+		pending_ability.clear()
 		body.tactical_status = "STATUS_RESUPPLY"
 		route.clear()
 		if body.position.distance_to(team.base_position) >= maxf(1.0, game.balance.base_heal_radius - 10.0):
@@ -151,11 +155,15 @@ func drive(body, delta: float) -> void:
 	elif body.valid_enemy(target):
 		body.tactical_status = "STATUS_ENGAGING"
 		_use_combat_ability(body)
+		if not pending_ability.is_empty():
+			_intent({"direction": pending_ability.direction}, delta)
+			return
 		if body.edge_distance(target) <= body.attack_range:
 			_intent({"attack": true, "target": target}, delta)
 		else:
 			_intent({"goal": target.global_position}, delta)
 	elif body.valid_enemy(base_threat):
+		pending_ability.clear()
 		body.tactical_status = "STATUS_DEFENDING"
 		_intent({"goal": base_threat.position}, delta)
 	elif order in [&"defend", &"escort"]:
@@ -190,9 +198,13 @@ func drive(body, delta: float) -> void:
 				# March with the army instead of outrunning it at full commander speed.
 			_intent({"goal": route[route_index], "speed_limit": 100.0}, delta)
 
+func cancel_pending_ability() -> void:
+	pending_ability.clear()
+
 func reset_orders() -> void:
 	recovering = false
 	ability_timer = 0.0
+	pending_ability.clear()
 	observed_heavy_id = -1
 	reaction_remaining = -1.0
 	target = null
@@ -234,8 +246,23 @@ func _deployment_lane() -> int:
 
 func _use_combat_ability(body) -> void:
 	if not body.valid_enemy(target):
+		pending_ability.clear()
 		observed_heavy_id = -1
 		reaction_remaining = -1.0
+		return
+	if not pending_ability.is_empty():
+		var id: StringName = pending_ability.ability_id
+		var heading: Vector2 = pending_ability.direction
+		var still_valid: bool = pending_ability.target_id == target.match_id and body.action_state == &"ready" and body.stun_remaining <= 0.0 and float(body.ability_cooldowns[id]) <= 0.0
+		if id == &"heavy":
+			still_valid = still_valid and body.edge_distance(target) <= body.attack_range and absf(heading.angle_to(body.position.direction_to(target.position))) <= deg_to_rad(25.0)
+		elif id == &"guard":
+			still_valid = still_valid and target.get("action_state") == &"heavy" and absf(heading.angle_to(body.position.direction_to(target.position))) <= deg_to_rad(60.0)
+		if not still_valid:
+			pending_ability.clear()
+		elif game.session.ticks > int(pending_ability.tick) and absf(body.facing.angle_to(heading)) < 0.01:
+			pending_ability.clear()
+			game.session.execute(MatchCommand.new(MatchCommand.Action.ABILITY, actor.commander_id, {"ability_id": id}))
 		return
 	var direction: Vector2 = body.position.direction_to(target.position)
 	var visible_heavy: bool = target.category == &"commander" and target.get("action_state") == &"heavy" and body.edge_distance(target) < 140.0 and game.navigation.clear_line(body.position, target.position)
@@ -269,7 +296,7 @@ func _use_combat_ability(body) -> void:
 		_request_ability(&"dash", direction)
 
 func _request_ability(id: StringName, direction: Vector2) -> void:
-	game.session.execute(MatchCommand.new(MatchCommand.Action.ABILITY, actor.commander_id, {"ability_id": id, "direction": direction}))
+	pending_ability = {"ability_id": id, "direction": direction.normalized(), "target_id": target.match_id, "tick": game.session.ticks}
 
 func _tower_money() -> int:
 	return int(game.tower_data[tower_id].money_cost)

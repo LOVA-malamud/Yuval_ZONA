@@ -3,6 +3,7 @@
 [resource]
 locale = "en"
 messages = {
+[&"", &"MINIMAP_SCOUT_HINT"]: [&"Hold and drag to scout; release to follow your commander."],
 [&"", &"HUD_BRAND"]: [&"CROWNFRONT\n2 v 2  /  CROWN PASS"],
 [&"", &"HUD_RESOURCES"]: [&"GOLD   /   WOOD"],
 [&"", &"PAUSE_BUTTON"]: [&"Ⅱ  Pause"],
@@ -149,8 +150,8 @@ messages = {
 [&"", &"HELP_NEXT"]: [&"Next"],
 [&"", &"HELP_CLOSE"]: [&"Close guide"],
 [&"", &"HELP_CONTROLS_TITLE"]: [&"You are a commander"],
-[&"", &"HELP_CONTROLS_BODY"]: [&"WASD moves; hold Space to attack. Shift dashes without invulnerability. F guards your front briefly. C commits a narrow heavy strike: a difficult hit deals damage and stuns briefly; dodging leaves its attacker open.\nE near your King begins gradual recovery. Moving, attacking or taking damage interrupts it and the cooldown remains."],
-[&"", &"HELP_CONTROLS_BODY_TOUCH"]: [&"Drag left to move. Nearby enemies are attacked automatically even without holding movement. Drag an action button to aim and release to commit; return to the button to cancel. Dash dodges, guard protects your front, and the difficult heavy strike briefly stuns on a hit.\nInteract near your King begins gradual healing; movement, attack or damage interrupts it. Army / orders opens the economy drawer without pausing."],
+[&"", &"HELP_CONTROLS_BODY"]: [&"WASD moves; hold Space to attack. Abilities follow your last movement facing. Hold and drag the minimap to scout; release to return. Shift dashes without invulnerability. F guards your front briefly. C commits a narrow heavy strike: a difficult hit deals damage and stuns briefly; dodging leaves its attacker open.\nE near your King begins gradual recovery. Moving, attacking or taking damage interrupts it and the cooldown remains."],
+[&"", &"HELP_CONTROLS_BODY_TOUCH"]: [&"Drag left to move. Nearby enemies are attacked automatically even without holding movement. Abilities follow your last movement facing. Release inside an action button to activate; release outside to cancel. Hold and drag the minimap to scout; release to return. Dash dodges, guard protects your front, and the difficult heavy strike briefly stuns on a hit.\nInteract near your King begins gradual healing; movement, attack or damage interrupts it. Army / orders opens the economy drawer without pausing."],
 [&"", &"HELP_CONTROLS_ACTION"]: [&"Start by moving out from your base. Your commander has a white ring and a YOU marker."],
 [&"", &"HELP_CONTROLS_ACTION_TOUCH"]: [&"Drag from the left side to leave your base. Your commander has a white ring and a YOU marker."],
 [&"", &"HELP_ARMY_TITLE"]: [&"Recruit and choose a route"],
@@ -170,7 +171,7 @@ messages = {
 [&"", &"HELP_MAP_ACTION"]: [&"Use the minimap to spot exposed routes and return when your King needs help."],
 [&"", &"HELP_TIP_OBJECTIVE"]: [&"Protect your King. Destroy the enemy King to win. Commanders respawn; Kings do not."],
 [&"", &"HELP_TIP_MOVE"]: [&"WASD moves your commander. Hold SPACE to attack. The white ring marks you."],
-[&"", &"HELP_TIP_MOVE_TOUCH"]: [&"Drag left to move; attacks are automatic. Aim dash, guard and heavy strike with the right buttons."],
+[&"", &"HELP_TIP_MOVE_TOUCH"]: [&"Drag left to move; attacks are automatic. Abilities follow your last movement facing; release inside the right buttons to activate, outside to cancel."],
 [&"", &"HELP_TIP_RECRUIT"]: [&"Choose North, Center or South, then recruit. New troops follow that route automatically."],
 [&"", &"HELP_TIP_WORKERS"]: [&"Workers deliver wood and gold. Your resources and upgrades are shared with your ally."],
 [&"", &"HELP_TIP_PADS"]: [&"Stand by a build pad and press E. Build a Guard Tower and upgrade it up to level 3."],
@@ -211,7 +212,7 @@ messages = {
 [&"", &"TUTORIAL_BUTTON"]: [&"Play tutorial"],
 [&"", &"MATCH_BUTTON"]: [&"New standard match"],
 [&"", &"TUTORIAL_MOVE"]: [&"Move toward the marked practice enemy: WASD, or drag on the left. Travel a short distance to begin."],
-[&"", &"TUTORIAL_ATTACK"]: [&"Defeat the practice enemy. Hold Space nearby; touch attacks automatically. Aim heavy strike carefully: its narrow hit briefly stuns."],
+[&"", &"TUTORIAL_ATTACK"]: [&"Defeat the practice enemy. Hold Space nearby; touch attacks automatically. Turn by moving before a heavy strike: its narrow hit briefly stuns."],
 [&"", &"TUTORIAL_RECRUIT"]: [&"Choose a route with 1/2/3 or the selector, then recruit a troop in Army. New recruits start at your King."],
 [&"", &"TUTORIAL_COORDINATE"]: [&"Open Orders and give your ally an order. Stand near your recruited troop and use Rally (Q or the button)."],
 [&"", &"TUTORIAL_TOWER"]: [&"Go to the marked home build pad. Press E or Interact, then build a Guard Tower with shared gold and wood."],

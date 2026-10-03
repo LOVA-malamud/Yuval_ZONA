@@ -22,7 +22,7 @@ REGRESSIONS = (
     "localization_regression", "settings_audio_regression", "onboarding_regression",
     "polish_regression", "game_lab", "step_parity", "definition_regression", "difficulty_regression",
     "combat_rework_regression", "economy_towers_regression", "deployment_policy_regression",
-    "hud_rework_regression", "economy_pacing_lab", "pixel_animation_regression",
+    "hud_rework_regression", "economy_pacing_lab", "pixel_animation_regression", "facing_scouting_regression",
 )
 
 
@@ -170,6 +170,7 @@ def main() -> int:
                 run("live_input", [args.godot, "--path", str(stage), "tests/live_playtest.tscn", "--", "finish", "display"])
             if args.suite == "render":
                 run("render_parity", [args.godot, "--path", str(stage), "--script", "tests/render_parity.gd"])
+                run("scouting_render", [args.godot, "--path", str(stage), "--script", "tests/facing_scouting_regression.gd"])
         shutil.copytree(stage / "tests/artifacts", output / "artifacts", dirs_exist_ok=True)
     summary = dict(suite=args.suite, commit=commit, engine=engine, checks=checks,
                    source_digest=source_digest,

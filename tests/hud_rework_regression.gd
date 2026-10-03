@@ -63,7 +63,8 @@ func _run() -> void:
 	button._input(drag)
 	press.pressed = false
 	button._input(press)
-	check(game.player.controller.pending_abilities.is_empty(), "Returning drag to action button cancels ability")
+	check(game.player.controller.pending_abilities.size() == 1, "Returning inside action button restores activation")
+	game.player.controller.reset_touch()
 	press.pressed = true
 	button._input(press)
 	press.pressed = false
@@ -80,8 +81,15 @@ func _run() -> void:
 	drag.position = press.position + Vector2(70, 0)
 	button._input(drag)
 	press.pressed = false
+	press.position = drag.position
 	button._input(press)
-	check(game.player.controller.touch_index == 2 and game.player.controller.pending_abilities.size() == 1 and game.player.controller.pending_abilities[0].direction.is_equal_approx(Vector2.RIGHT), "Action finger aims right independently of held movement finger")
+	check(game.player.controller.touch_index == 2 and game.player.controller.pending_abilities.is_empty(), "Outside action release cancels independently of held movement finger")
+	press.position = button.get_global_rect().get_center()
+	press.pressed = true
+	button._input(press)
+	press.pressed = false
+	button._input(press)
+	check(game.player.controller.touch_index == 2 and game.player.controller.pending_abilities.size() == 1 and not game.player.controller.pending_abilities[0].has("direction"), "Action release queues facing-based ability independently of movement finger")
 	game.player.controller.reset_touch()
 	check(game.player.controller.pending_abilities.is_empty(), "Input cleanup clears queued abilities")
 	viewport.size = Vector2i(540, 960)
@@ -93,9 +101,13 @@ func _run() -> void:
 	movement = null
 	press = null
 	drag = null
+	# Drain manually stepped audio starts before teardown.
+	await physics_frame
+	await physics_frame
 	root.get_node("AudioFeedback").stop_all()
 	game.free()
 	viewport.free()
 	await process_frame
-	await process_frame
+	root.get_node("AudioFeedback").queue_free()
+	await create_timer(0.5).timeout
 	quit(1 if failures else 0)

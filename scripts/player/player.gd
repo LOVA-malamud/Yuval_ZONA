@@ -18,6 +18,8 @@ var healing: bool = false
 var action_state: StringName = &"ready"
 var action_remaining: float = 0.0
 var facing := Vector2.RIGHT
+var scouting: bool = false
+var scouting_target := Vector2.ZERO
 var ability_cooldowns: Dictionary = {&"dash": 0.0, &"guard": 0.0, &"heavy": 0.0}
 
 func _tuning(key: String, fallback: float) -> float:
@@ -35,14 +37,12 @@ func cancel_action() -> void:
 	if character_visual != null:
 		character_visual.cancel_attack()
 
-func activate_ability(ability_id: StringName, direction: Vector2) -> bool:
+func activate_ability(ability_id: StringName) -> bool:
 	if ability_id == &"heavy_strike":
 		ability_id = &"heavy"
 	if not alive or stun_remaining > 0.0 or action_state != &"ready" or strike_remaining > 0.0 or not ability_cooldowns.has(ability_id) or ability_cooldowns[ability_id] > 0.0:
 		return false
 	_interrupt_healing(&"ability")
-	if direction.is_finite() and direction.length_squared() > 0.001:
-		facing = direction.normalized()
 	action_state = ability_id
 	match ability_id:
 		&"dash":
@@ -137,6 +137,7 @@ func _ready() -> void:
 	attack_cooldown = 0.55
 	move_speed = 230.0
 	body_radius = 18.0
+	facing = Vector2.RIGHT if team.base_position.x < game.MAP_SIZE.x * 0.5 else Vector2.LEFT
 	$Camera2D.enabled = human_controlled and game.presentation_enabled
 	if human_controlled:
 		z_index = 2
@@ -229,6 +230,34 @@ func _draw() -> void:
 		var selected: CombatEntity = controller.focus_target
 		draw_arc(to_local(selected.position), selected.body_radius + 13.0, 0.0, TAU, 24, Color.WHITE, 3.0, true)
 
+# Camera state is presentation-only; it never enters the command stream.
+func scout_camera(world_position: Vector2) -> void:
+	if not human_controlled or not game.presentation_enabled:
+		return
+	scouting = true
+	scouting_target = world_position
+	update_scout_camera()
+
+func update_scout_camera() -> void:
+	if not scouting:
+		return
+	var camera: Camera2D = $Camera2D
+	var half_view := get_viewport_rect().size / camera.zoom * 0.5
+	var center := scouting_target
+	for axis in range(2):
+		center[axis] = game.MAP_SIZE[axis] * 0.5 if half_view[axis] * 2.0 >= game.MAP_SIZE[axis] else clampf(center[axis], half_view[axis], game.MAP_SIZE[axis] - half_view[axis])
+	camera.position = center - global_position
+
+func end_camera_scouting(immediate: bool = false) -> void:
+	scouting = false
+	$Camera2D.position = Vector2.ZERO
+	if immediate:
+		$Camera2D.reset_smoothing()
+
+func update_movement_facing(direction: Vector2) -> void:
+	if alive and stun_remaining <= 0.0 and action_state == &"ready" and direction.is_finite() and direction.length_squared() > 0.001:
+		facing = direction.normalized()
+
 func apply_input(values: Dictionary) -> void:
 	var direction: Vector2 = values.get("direction", Vector2.ZERO)
 	var moving: bool = direction.length_squared() > 0.001 or (values.has("goal") and global_position.distance_to(values.goal) > 4.0)
@@ -238,8 +267,8 @@ func apply_input(values: Dictionary) -> void:
 		_interrupt_healing(&"attack")
 	if stun_remaining > 0.0 or action_state == &"dash" or healing:
 		return
-	if direction.length_squared() > 0.001 and action_state == &"ready":
-		facing = direction.normalized()
+	var heading: Vector2 = global_position.direction_to(values.goal) if values.has("goal") and moving else direction
+	update_movement_facing(heading)
 	var original_speed: float = move_speed
 	if action_state == &"guard":
 		move_speed *= _tuning("guard_move_multiplier", 0.35)
@@ -299,6 +328,7 @@ func die() -> void:
 	tactical_status = "STATUS_RESPAWNING"
 	hide()
 	if human_controlled:
+		end_camera_scouting(true)
 		game.play_sound(&"commander_death")
 		game.notify("COMMANDER_DOWN", [int(respawn_remaining)])
 
@@ -318,3 +348,4 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 			change = -0.05
 		$Camera2D.zoom = Vector2.ONE * clampf($Camera2D.zoom.x + change, 0.7, 1.1)
+		update_scout_camera()

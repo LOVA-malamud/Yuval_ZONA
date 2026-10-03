@@ -125,12 +125,10 @@ func execute(command: MatchCommand) -> CommandResult:
 	var event_type: StringName = &""
 	match command.action:
 		MatchCommand.Action.ABILITY:
-			if not commander.alive or not typeof(values.get("ability_id")) in [TYPE_STRING, TYPE_STRING_NAME] or typeof(values.get("direction")) != TYPE_VECTOR2:
+			if not commander.alive or not typeof(values.get("ability_id")) in [TYPE_STRING, TYPE_STRING_NAME]:
 				return CommandResult.new(false, &"invalid_request")
-			var direction: Vector2 = values.direction
-			if not direction.is_finite() or direction.length_squared() < 0.0001:
-				return CommandResult.new(false, &"invalid_input")
-			success = commander.activate_ability(StringName(values.ability_id), direction.normalized())
+			# Legacy direction fields are intentionally ignored: facing belongs to movement.
+			success = commander.activate_ability(StringName(values.ability_id))
 		MatchCommand.Action.RECRUIT:
 			if not typeof(values.get("id")) in [TYPE_STRING, TYPE_STRING_NAME] or typeof(values.get("route")) != TYPE_INT:
 				return CommandResult.new(false, &"invalid_request")
@@ -219,6 +217,9 @@ func _clear_input() -> void:
 	if game == null:
 		return
 	for commander in game.commanders:
+		commander.end_camera_scouting(true)
+		if commander.controller.has_method("cancel_pending_ability"):
+			commander.controller.cancel_pending_ability()
 		if commander.controller.has_method("reset_touch"):
 			commander.controller.reset_touch()
 		if commander.controller.has_method("clear_scripted_command"):

@@ -8,6 +8,10 @@
 - [Rework verification](rework-verification.md): implemented gameplay and remaining acceptance checks.
 - [Rework balance results](rework-balance-results.md): measured snapshots and unfinished integrated pacing work.
 
+## Current local controls
+
+- [Facing abilities and minimap scouting](facing-and-scouting-verification.md): issues #9/#11 behavior, command compatibility and regression/render/native evidence.
+
 ## Pixel art branch
 
 - [Manual-playtest animation fixes](pixel-art-animation-fix.md): screenshot issue index, stale-cache recovery, equipment attachment and corrected launch commands.

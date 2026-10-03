@@ -36,6 +36,7 @@ func _run() -> void:
 	v.reset(actor.position)
 	for dir in range(8):
 		var heading := Vector2.from_angle(dir * PI / 4.0)
+		actor.update_movement_facing(heading)
 		actor.position += heading * 4.0
 		actor.step_presentation(MatchSession.STEP,true)
 		check(v.direction == dir and v.moving,"Actual movement selects facing %d" % dir)
@@ -79,7 +80,8 @@ func _run() -> void:
 	check(v.action==&"attack" and actor.cooldown>0,"Missed light strike still visibly follows through")
 	actor.cancel_action()
 	actor.cooldown=0
-	actor.activate_ability(&"heavy",Vector2.UP)
+	actor.facing = Vector2.UP
+	actor.activate_ability(&"heavy")
 	actor.step_gameplay(0.3)
 	actor.step_presentation(MatchSession.STEP,true)
 	check(v.action==&"heavy" and v.direction==6,"Heavy preparation retains committed facing")
@@ -89,7 +91,8 @@ func _run() -> void:
 	v.step(actor,0.3)
 	check(v.action==&"recovery","Heavy follow-through ends in exposed recovery pose")
 	actor.cancel_action()
-	actor.activate_ability(&"guard",Vector2.RIGHT)
+	actor.facing = Vector2.RIGHT
+	actor.activate_ability(&"guard")
 	actor.step_presentation(MatchSession.STEP,true)
 	check(v.action==&"guard" and v.direction==0,"Shield faces the protected direction")
 	actor.take_damage(20,2,0,actor.position+Vector2.RIGHT*30)
@@ -100,7 +103,8 @@ func _run() -> void:
 	actor.step_presentation(MatchSession.STEP,true)
 	check(v.action==&"guard" and v.block_remaining==0,"Rear hit does not falsely show a successful block")
 	actor.cancel_action()
-	actor.activate_ability(&"dash",Vector2.DOWN)
+	actor.facing = Vector2.DOWN
+	actor.activate_ability(&"dash")
 	actor.step_gameplay(0.05)
 	actor.step_presentation(MatchSession.STEP,true)
 	check(v.action==&"dash" and v.direction==2,"Dash uses committed lean and facing")
@@ -187,7 +191,8 @@ func _run() -> void:
 	actor.healing = false
 	v.reset(actor.position)
 	actor.ability_cooldowns[&"guard"] = 0.0
-	check(actor.activate_ability(&"guard",Vector2.UP),"Offscreen guard test activates a fresh action")
+	actor.facing = Vector2.UP
+	check(actor.activate_ability(&"guard"),"Offscreen guard test activates a fresh action")
 	v.step(actor,MatchSession.STEP,false)
 	check(v.action==&"idle" and v.direction==6,"Offscreen sampling keeps facing without rebuilding pose")
 	v.step(actor,MatchSession.STEP,true)

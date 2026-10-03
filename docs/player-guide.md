@@ -8,7 +8,7 @@ Choose a route with **1/2/3** or the route selector, then recruit. Existing troo
 
 Press **R / Regroup** to gather allied troops within 400 around safe positions near your activation point for eight seconds. Combat takes priority; afterward troops resume their original lanes. Repeating Regroup replaces the temporary destination. These commands affect nearby troops rather than the whole army.
 
-Click a visible enemy to focus attacks, then hold Space to strike. Invalid targets, targets outside detection range and targets behind terrain clear automatically; ordinary nearby targeting continues. On touch devices, drag on the left to move; auto-attack works independently of movement. Tap enemies to focus and use the on-screen commands. Drag an ability button to aim, release to activate, or drag back inside to cancel. Purchasing uses collapsible drawers.
+Click a visible enemy to focus attacks, then hold Space to strike. Invalid targets, targets outside detection range and targets behind terrain clear automatically; ordinary nearby targeting continues. On touch devices, drag on the left to move; auto-attack works independently of movement. Tap enemies to focus and use the on-screen commands. Release an ability button inside it to activate along your last movement facing; release outside to cancel. Hold and drag the minimap to scout; release to follow your commander again. Purchasing uses collapsible drawers.
 
 ## Coordinate your ally
 
@@ -32,6 +32,6 @@ Focus loss pauses play and clears held input. Escape or system Back closes the c
 
 ## Combat and recovery
 
-Use **Shift** to dash, **F** to guard and **C** for a heavy strike, aimed toward the mouse. Guard reduces frontal damage; a heavy strike commits your facing during its wind-up and briefly stuns an unguarded commander or troop. Dash has no invulnerability. Movement, damage and offensive actions interrupt base recovery: use Interact within 180 units of your King to channel 60 HP/second, with a 30-second cooldown after a valid start.
+Use **Shift** to dash, **F** to guard and **C** for a heavy strike, along your last movement facing. Guard reduces frontal damage; a heavy strike commits your facing during its wind-up and briefly stuns an unguarded commander or troop. Dash has no invulnerability. Movement, damage and offensive actions interrupt base recovery: use Interact within 180 units of your King to channel 60 HP/second, with a 30-second cooldown after a valid start.
 
 Build Guard, Splash or Long-range towers at pads. Splash hits nearby enemies; Long-range towers have a close-range dead zone. Secure exposed timber as home stock runs out.

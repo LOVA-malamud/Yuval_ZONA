@@ -108,8 +108,11 @@ func step(actor, delta: float, sample_pose: bool = true) -> bool:
 	var ability: StringName = actor.action_state if actor.kind == &"player" else &"ready"
 	# Teleports and initial placement do not produce a burst of walking frames.
 	moving = motion.length_squared() > 0.01 and (motion.length() < maxf(24.0, actor.move_speed * delta * 4.0) or ability == &"dash")
+	if actor.kind == &"player":
+		_face(actor.facing, true)
 	if moving:
-		_face(motion)
+		if actor.kind != &"player":
+			_face(motion)
 		walk_phase += motion.length() / 32.0 * FRAMES
 	leg_frame = int(walk_phase) % FRAMES if moving else 0
 	if not sample_pose:

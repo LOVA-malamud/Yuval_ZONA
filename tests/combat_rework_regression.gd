@@ -38,20 +38,22 @@ func _run() -> void:
 	check(not actor.healing, "Enemy damage interrupts healing")
 	actor.heal_cooldown = 0.0
 	actor.interact()
-	actor.activate_ability(&"dash", Vector2.RIGHT)
+	actor.facing = Vector2.RIGHT
+	actor.activate_ability(&"dash")
 	check(not actor.healing, "Ability interrupts healing")
 	actor.cancel_action()
 	actor.position = Vector2(650, 1410)
 	var start: Vector2 = actor.position
 	actor.ability_cooldowns[&"dash"] = 0.0
-	check(actor.activate_ability(&"dash", Vector2.RIGHT), "Dash activation accepted")
+	check(actor.activate_ability(&"dash"), "Dash activation accepted")
 	for step in range(3):
 		actor.step_gameplay(0.05)
 	check(is_equal_approx(actor.position.distance_to(start), 150.0), "Dash moves 150 units through open terrain")
-	check(actor.action_state == &"recovery" and not actor.activate_ability(&"guard", Vector2.RIGHT), "Dash has committed recovery")
+	check(actor.action_state == &"recovery" and not actor.activate_ability(&"guard"), "Dash has committed recovery")
 	actor.cancel_action()
 	actor.health = actor.max_health
-	actor.activate_ability(&"guard", Vector2.RIGHT)
+	actor.facing = Vector2.RIGHT
+	actor.activate_ability(&"guard")
 	actor.take_damage(20.0, game.teams[1].team_id, 0, actor.position + Vector2.RIGHT * 30.0)
 	check(is_equal_approx(actor.health, actor.max_health - 6.0), "Frontal guard reduces damage by 70 percent")
 	actor.take_damage(20.0, game.teams[1].team_id, 0, actor.position - Vector2.RIGHT * 30.0)
@@ -61,7 +63,7 @@ func _run() -> void:
 	foe.position = actor.position + Vector2.RIGHT * 65.0
 	foe.cancel_action()
 	foe.health = foe.max_health
-	check(actor.activate_ability(&"heavy", Vector2.RIGHT), "Heavy windup accepted")
+	check(actor.activate_ability(&"heavy"), "Heavy windup accepted")
 	actor.step_gameplay(0.3)
 	check(foe.health == foe.max_health, "Heavy strike cannot hit before committed windup")
 	actor.step_gameplay(0.31)
@@ -72,7 +74,8 @@ func _run() -> void:
 	actor.ability_cooldowns[&"heavy"] = 0.0
 	foe.position = actor.position + Vector2.UP * 65.0
 	var before: float = foe.health
-	actor.activate_ability(&"heavy", Vector2.RIGHT)
+	actor.facing = Vector2.RIGHT
+	actor.activate_ability(&"heavy")
 	actor.step_gameplay(0.61)
 	check(foe.health == before and actor.action_state == &"recovery", "Narrow heavy strike misses outside cone and still recovers")
 	actor.cancel_action()
@@ -81,15 +84,18 @@ func _run() -> void:
 	foe.cancel_action()
 	foe.ability_cooldowns[&"guard"] = 0.0
 	foe.stun_immunity = 0.0
-	foe.activate_ability(&"guard", Vector2.LEFT)
-	actor.activate_ability(&"heavy", Vector2.RIGHT)
+	foe.facing = Vector2.LEFT
+	foe.activate_ability(&"guard")
+	actor.facing = Vector2.RIGHT
+	actor.activate_ability(&"heavy")
 	actor.step_gameplay(0.61)
 	check(foe.stun_remaining == 0.0, "Successful guard prevents heavy stun")
 	actor.cancel_action()
 	actor.ability_cooldowns[&"dash"] = 0.0
 	var obstacle: Rect2 = game.navigation.obstacles[0]
 	actor.position = Vector2(obstacle.position.x - actor.body_radius - 5.0, obstacle.get_center().y)
-	actor.activate_ability(&"dash", Vector2.RIGHT)
+	actor.facing = Vector2.RIGHT
+	actor.activate_ability(&"dash")
 	for step in range(3):
 		actor.step_gameplay(0.05)
 	check(actor.position.x <= obstacle.position.x - actor.body_radius + 1.0, "Dash clips before terrain and cannot cross walls")

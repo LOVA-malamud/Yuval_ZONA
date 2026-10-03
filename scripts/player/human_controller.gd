@@ -38,7 +38,9 @@ func drive(actor, delta: float) -> void:
 	if not scripted:
 		for key in ["ability_dash", "ability_guard", "ability_heavy"]:
 			if InputMap.has_action(key) and Input.is_action_just_pressed(key):
-				request_ability(StringName(key.trim_prefix("ability_")), actor.global_position.direction_to(actor.get_global_mouse_position()))
+				request_ability(StringName(key.trim_prefix("ability_")))
+	# Resolve this tick's movement facing before activating; movement is applied once below.
+	actor.update_movement_facing(direction)
 	for request in pending_abilities:
 		actor.game.session.execute(MatchCommand.new(MatchCommand.Action.ABILITY, actor.commander_id, request))
 	pending_abilities.clear()
@@ -77,21 +79,16 @@ func _select_target(screen_position: Vector2) -> void:
 func _input(event: InputEvent) -> void:
 	# Releases must arrive even if a finger ends over a GUI control.
 	if event is InputEventScreenTouch and not event.pressed and event.index == touch_index:
-		reset_touch()
+		# Ending movement must not discard another finger's queued action.
+		touch_index = -1
+		touch_direction = Vector2.ZERO
 	elif event is InputEventScreenDrag and event.index == touch_index:
 		var offset: Vector2 = (event.position - touch_origin) / STICK_RADIUS
 		touch_direction = offset.limit_length(1.0) if offset.length() >= DEAD_ZONE else Vector2.ZERO
 
 
-func request_ability(ability_id: StringName, direction: Vector2 = Vector2.ZERO) -> void:
-	var actor = get_parent()
-	if direction.length_squared() < 0.001:
-		direction = touch_direction
-		if direction.length_squared() < 0.001:
-			direction = Input.get_vector("move_left", "move_right", "move_up", "move_down")
-		if direction.length_squared() < 0.001:
-			direction = actor.global_position.direction_to(focus_target.global_position) if actor.valid_enemy(focus_target) else actor.facing
-	pending_abilities.append({"ability_id": ability_id, "direction": direction.normalized()})
+func request_ability(ability_id: StringName) -> void:
+	pending_abilities.append({"ability_id": ability_id})
 
 func reset_touch() -> void:
 	pending_abilities.clear()

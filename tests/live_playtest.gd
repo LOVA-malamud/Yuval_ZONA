@@ -38,6 +38,37 @@ func _run() -> void:
 	await get_tree().create_timer(0.7).timeout
 	Input.action_release("move_right")
 	check(game.player.position.x > start.x+120,"Human WASD input moves commander")
+	# Exercise real keyboard polling with a cursor opposite the last movement facing.
+	var last_facing: Vector2 = game.player.facing
+	var opposite_cursor := InputEventMouseMotion.new()
+	opposite_cursor.position = game.player.get_canvas_transform() * (game.player.position - last_facing * 200)
+	get_viewport().push_input(opposite_cursor, true)
+	for id in [&"dash", &"guard", &"heavy"]:
+		game.player.cancel_action()
+		Input.action_press("ability_" + String(id))
+		await get_tree().physics_frame
+		await get_tree().physics_frame
+		Input.action_release("ability_" + String(id))
+		check(game.player.action_state == id and game.player.facing.is_equal_approx(last_facing), "Keyboard " + String(id) + " retains facing with opposite cursor")
+	game.player.cancel_action()
+	var overview = game.hud.minimap_column.get_child(1)
+	var scout_press := InputEventMouseButton.new()
+	scout_press.button_index = MOUSE_BUTTON_LEFT
+	scout_press.position = overview.get_global_rect().get_center()
+	scout_press.pressed = true
+	var scouting_position: Vector2 = game.player.position
+	get_viewport().push_input(scout_press, true)
+	await get_tree().create_timer(0.4).timeout
+	check(game.player.scouting and game.player.position.is_equal_approx(scouting_position), "Native minimap press scouts without moving commander")
+	var scout_camera: Camera2D = game.player.get_node("Camera2D")
+	check(scout_camera.get_screen_center_position().distance_to(scout_camera.global_position) < 150, "Rendered camera approaches minimap scouting target")
+	scout_press.pressed = false
+	scout_press.position = Vector2.ZERO
+	get_viewport().push_input(scout_press, true)
+	await get_tree().create_timer(0.4).timeout
+	check(not game.player.scouting and scout_camera.position == Vector2.ZERO, "Native outside release restores player following")
+	opposite_cursor = null
+	scout_press = null
 	game.teams[0].money = 1000
 	game.teams[0].wood = 500
 	var before: int = game.teams[0].combat_count

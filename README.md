@@ -23,7 +23,7 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | --- | --- |
 | `WASD` | Move the human commander |
 | Hold `Space` | Attack a nearby enemy |
-| `Shift` / `F` / `C` | Dash / guard / heavy strike, aimed toward the mouse |
+| `Shift` / `F` / `C` | Dash / guard / heavy strike, along your last movement facing |
 | `E` near a King or build pad | Open the relevant interaction |
 | Mouse wheel | Zoom the battlefield camera |
 | `1` / `2` / `3` or route selector | North / Center / South for new recruits |
@@ -34,7 +34,7 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | Army / King / Economy tabs | Recruit units and buy shared upgrades |
 | `Escape` | Pause, close the active panel, or resume |
 
-On a touchscreen, drag from the left side to move. Mobile auto-attack works independently of movement. Drag an ability button to aim and release to activate; drag back into the button to cancel. A quick tap follows your movement facing or a nearby target when stationary. Use Interact near your King to channel recovery or near a build pad to select a tower. Army, King, and Economy controls open in collapsible drawers. Landscape safe areas and a portrait rotate prompt are supported; thumb reach and dense-combat readability still require phone playtests.
+On a touchscreen, drag from the left side to move. Mobile auto-attack works independently of movement. Release an ability button inside it to activate along your last movement facing; release outside to cancel. Hold and drag the minimap to scout distant fights; release to return to your commander. Use Interact near your King to channel recovery or near a build pad to select a tower. Army, King, and Economy controls open in collapsible drawers. Landscape safe areas and a portrait rotate prompt are supported; thumb reach and dense-combat readability still require phone playtests.
 
 Heavy strike commits your facing through a visible 0.6-second wind-up. It deals 48 damage and briefly stuns commanders and troops when their guard fails. Front-facing guard and lateral dash provide counterplay; missing leaves you vulnerable during recovery.
 

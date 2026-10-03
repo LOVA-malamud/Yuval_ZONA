@@ -5,16 +5,89 @@ var game = null
 var refresh_time: float = 0.0
 var lane_points: Array[PackedVector2Array] = []
 var cached_size := Vector2.ZERO
+# -1 means no touch; mouse ownership is separate to avoid emulated mouse takeover.
+var scouting_finger: int = -1
+var scouting_mouse: bool = false
+var gesture_rect := Rect2()
+
 
 func _ready() -> void:
 	clip_contents = true
-	mouse_filter = Control.MOUSE_FILTER_IGNORE
+	mouse_filter = Control.MOUSE_FILTER_STOP
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	tooltip_text = tr("MINIMAP_SCOUT_HINT")
 
 func _process(delta: float) -> void:
+	tooltip_text = tr("MINIMAP_SCOUT_HINT")
+	if scouting_finger >= 0 or scouting_mouse:
+		if not _can_scout() or gesture_rect != get_global_rect() or not game.player.scouting:
+			cancel_scouting(true)
+		else:
+			game.player.update_scout_camera()
 	refresh_time -= delta
 	if refresh_time <= 0.0:
 		refresh_time = 0.2
 		queue_redraw()
+
+func _can_scout() -> bool:
+	return is_visible_in_tree() and game != null and is_instance_valid(game.player) and game.player.alive and game.session.state == MatchSession.State.RUNNING and not game.match_finished and not get_tree().paused
+
+func _scout_at(screen_position: Vector2) -> void:
+	var local: Vector2 = get_global_transform_with_canvas().affine_inverse() * screen_position
+	var fraction := Vector2(clampf(local.x / size.x, 0.0, 1.0), clampf(local.y / size.y, 0.0, 1.0))
+	game.player.scout_camera(fraction * game.MAP_SIZE)
+	queue_redraw()
+
+func cancel_scouting(immediate: bool = false) -> void:
+	scouting_finger = -1
+	scouting_mouse = false
+	if game != null and is_instance_valid(game.player):
+		game.player.end_camera_scouting(immediate)
+	queue_redraw()
+
+func _input(event: InputEvent) -> void:
+	if not _can_scout():
+		if scouting_finger >= 0 or scouting_mouse:
+			cancel_scouting(true)
+		return
+	if event is InputEventScreenTouch:
+		if event.pressed and get_global_rect().has_point(event.position):
+			if scouting_finger < 0 and not scouting_mouse:
+				scouting_finger = event.index
+				gesture_rect = get_global_rect()
+				_scout_at(event.position)
+			get_viewport().set_input_as_handled()
+		elif not event.pressed and event.index == scouting_finger:
+			cancel_scouting(event.canceled)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventScreenDrag and event.index == scouting_finger:
+		_scout_at(event.position)
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			if event.pressed and get_global_rect().has_point(event.position):
+				if scouting_finger < 0 and not scouting_mouse:
+					scouting_mouse = true
+					gesture_rect = get_global_rect()
+					_scout_at(event.position)
+				get_viewport().set_input_as_handled()
+			elif not event.pressed and scouting_mouse:
+				cancel_scouting()
+				get_viewport().set_input_as_handled()
+		elif event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP, MOUSE_BUTTON_WHEEL_DOWN] and get_global_rect().has_point(event.position):
+			# GUI consumes wheel events, so explicitly retain the player's existing zoom.
+			game.player._unhandled_input(event)
+			get_viewport().set_input_as_handled()
+	elif event is InputEventMouseMotion and scouting_mouse:
+		_scout_at(event.position)
+		get_viewport().set_input_as_handled()
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_FOCUS_OUT or what == NOTIFICATION_WM_GO_BACK_REQUEST:
+		cancel_scouting(true)
+
+func _exit_tree() -> void:
+	cancel_scouting(true)
 
 func _draw() -> void:
 	draw_rect(Rect2(Vector2.ZERO, size), Color("243d38"))
