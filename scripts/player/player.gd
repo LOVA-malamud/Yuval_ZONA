@@ -32,6 +32,8 @@ func cancel_action() -> void:
 	action_remaining = 0.0
 	strike_target = null
 	strike_remaining = 0.0
+	if character_visual != null:
+		character_visual.cancel_attack()
 
 func activate_ability(ability_id: StringName, direction: Vector2) -> bool:
 	if ability_id == &"heavy_strike":
@@ -88,6 +90,8 @@ func take_damage(amount: float, attacker_team_id: int, source_commander_id: int 
 	if alive and team.is_enemy(attacker_team_id) and amount > 0.0:
 		_interrupt_healing(&"damage")
 		if guards_from(source_position):
+			if character_visual != null:
+				character_visual.note_block()
 			amount *= 1.0 - _tuning("guard_damage_reduction", 0.7)
 	super.take_damage(amount, attacker_team_id, source_commander_id, source_position)
 
@@ -115,6 +119,7 @@ func _step_action(delta: float) -> void:
 		else:
 			var was_heavy: bool = action_state == &"heavy"
 			if was_heavy:
+				note_visual_attack(facing, true)
 				_resolve_heavy()
 			action_state = &"recovery"
 			action_remaining = _tuning("heavy_recovery", 0.45) if was_heavy else _tuning("ability_recovery", 0.2)
@@ -164,6 +169,8 @@ func step_gameplay(delta: float) -> void:
 			if controller.has_method("reset_orders"):
 				controller.reset_orders()
 			global_position = spawn_position
+			if character_visual != null:
+				character_visual.reset(global_position, true)
 			add_to_group("combatants")
 			game.session.publish({"type": "commander_return", "team": team.team_id, "commander_id": commander_id, "entity_id": match_id, "position": [position.x, position.y]})
 			show()
@@ -197,6 +204,8 @@ func _resolve_strike() -> void:
 	if valid_enemy(strike_target) and edge_distance(strike_target) <= attack_range and game.navigation.clear_line(global_position, strike_target.global_position):
 		super.attack(strike_target)
 	else:
+		var heading: Vector2 = global_position.direction_to(strike_target.global_position) if is_instance_valid(strike_target) else facing
+		note_visual_attack(heading)
 		# Dodging a committed strike creates a real opening for the opponent.
 		cooldown = attack_cooldown
 	strike_target = null
@@ -274,6 +283,7 @@ func interact() -> void:
 		game.notify("APPROACH_KING")
 
 func die() -> void:
+	game.spawn_character_remnant(self)
 	cancel_action()
 	game.spawn_effect(global_position, team.color, "death")
 	alive = false

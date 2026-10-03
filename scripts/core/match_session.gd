@@ -61,6 +61,8 @@ func step() -> void:
 			break
 		if is_instance_valid(actor) and not actor.is_queued_for_deletion():
 			actor.step_gameplay(STEP)
+			if game.presentation_enabled and is_instance_valid(actor) and not actor.is_queued_for_deletion():
+				actor.step_presentation(STEP)
 	game.rebuild_spatial()
 	if state == State.RUNNING:
 		for projectile in game.get_tree().get_nodes_in_group("projectiles"):

@@ -9,7 +9,11 @@ static func snapshot(game) -> Dictionary:
 	var actors := []
 	for actor in game.session.actors.values():
 		if is_instance_valid(actor):
-			actors.append([actor.match_id, String(actor.kind), actor.position, actor.health, actor.cooldown, actor.alive, actor.rally_buff])
+			actors.append([actor.match_id, String(actor.kind), actor.position, actor.health, actor.cooldown, actor.alive, actor.rally_buff, actor.stun_remaining, actor.stun_immunity])
+			if actor.kind == &"player":
+				actors[-1].append([actor.action_state, actor.action_remaining, actor.strike_remaining, actor.facing, actor.healing, actor.heal_cooldown, actor.respawn_remaining, actor.ability_cooldowns.duplicate()])
+			elif actor.kind == &"worker":
+				actors[-1].append([actor.state, actor.carried, actor.gather_progress])
 	var wallets := []
 	for team in game.teams:
 		wallets.append([team.money, team.wood, team.worker_count, team.combat_count, team.upgrade_levels.duplicate(true)])
@@ -32,6 +36,9 @@ func _run() -> void:
 			game.player.controller.set_scripted_command(Vector2.RIGHT if tick < 120 else Vector2.ZERO, true)
 			if tick in [0, 120, 240]:
 				game.session.submit(MatchCommand.new(MatchCommand.Action.RECRUIT, 1, {"id": &"ranged", "route": 1}))
+			if tick in [150, 480, 780]:
+				game.player.cancel_action()
+				game.session.submit(MatchCommand.new(MatchCommand.Action.ABILITY, 1, {"ability_id": [&"dash", &"guard", &"heavy"][[150, 480, 780].find(tick)], "direction": Vector2.RIGHT}))
 			if tick == 60:
 				game.session.submit(MatchCommand.new(MatchCommand.Action.RALLY, 1))
 			game.session.step()

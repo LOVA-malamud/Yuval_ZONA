@@ -21,12 +21,27 @@ func _run() -> void:
 	root.add_child(capture_viewport)
 	var game = load("res://scenes/main/tutorial.tscn" if scenario == "tutorial" else "res://scenes/main/main.tscn").instantiate()
 	game.pause_on_focus_loss = false
-	game.force_touch_controls = requested_size == Vector2i(1600, 720) or scenario == "cutout"
+
+	game.force_touch_controls = requested_size == Vector2i(1600, 720) or requested_size.x <= 960 or scenario == "cutout"
 	if scenario == "cutout":
 		game.safe_area_override = Rect2(60, 24, requested_size.x - 100, requested_size.y - 48)
 	capture_viewport.add_child(game)
 	current_scene = capture_viewport
 	await process_frame
+	if args.size() > 3:
+		game.player.get_node("Camera2D").zoom = Vector2.ONE * clampf(float(args[3]),0.7,1.1)
+	if scenario == "workers":
+		var grove = game.get_node("Trees").get_child(0)
+		game.player.position = grove.position + Vector2(-110,100)
+		game.player.controller.set_scripted_command(Vector2.ZERO,false)
+		var index: int = 0
+		for actor in game.session.actors_in_order:
+			if actor.kind == &"worker" and actor.team.team_id == 1:
+				actor.tree = grove
+				actor.position = grove.position + Vector2(-35-index*55,0)
+				actor.state = actor.State.GATHER if index==0 else actor.State.RETURN
+				actor.carried = 0 if index==0 else 4
+				index += 1
 	if scenario in ["battle","king","economy","commands","rally"]:
 		game.teams[0].money = 700
 		game.teams[0].wood = 280
@@ -97,7 +112,7 @@ func _run() -> void:
 	game.process_mode = Node.PROCESS_MODE_DISABLED
 	await process_frame
 	RenderingServer.force_draw()
-	var file: String = "res:/" + "/tests/artifacts/" + scenario + "_" + locale + "_" + str(requested_size.x) + "x" + str(requested_size.y) + ".png"
+	var file: String = "res:/" + "/tests/artifacts/" + scenario + "_" + locale + "_" + str(requested_size.x) + "x" + str(requested_size.y) + ("_zoom%03d" % int(float(args[3])*100) if args.size()>3 else "") + ".png"
 	var captured: Image = capture_viewport.get_texture().get_image()
 	var error: Error = captured.save_png(file)
 	if captured.get_size() != requested_size:

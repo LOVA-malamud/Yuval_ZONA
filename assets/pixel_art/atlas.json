@@ -1,0 +1,54 @@
+{
+  "cell": [
+    32,
+    40
+  ],
+  "anchor": [
+    16,
+    31
+  ],
+  "pixel_scale": 2,
+  "frames": 6,
+  "directions": [
+    "E",
+    "SE",
+    "S",
+    "SW",
+    "W",
+    "NW",
+    "N",
+    "NE"
+  ],
+  "actions": [
+    "idle",
+    "attack",
+    "heavy",
+    "guard",
+    "guard_hit",
+    "dash",
+    "recovery",
+    "stun",
+    "heal",
+    "gather",
+    "carry",
+    "flee",
+    "deposit",
+    "death",
+    "spawn",
+    "bow_ready",
+    "windup",
+    "walk",
+    "flee_carry"
+  ],
+  "roles": [
+    "player",
+    "melee",
+    "ranged",
+    "tank",
+    "worker"
+  ],
+  "teams": [
+    "azure",
+    "ember"
+  ]
+}

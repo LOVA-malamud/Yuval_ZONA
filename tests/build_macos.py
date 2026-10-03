@@ -36,7 +36,7 @@ def finalize_archive(output):
                     with source.open(original) as incoming, target.open(info, "w") as outgoing:
                         shutil.copyfileobj(incoming, outgoing)
                 target.write(notices, "GODOT-LICENSES.txt", compress_type=zipfile.ZIP_DEFLATED)
-                target.writestr("CROWNFRONT-ASSETS.txt", "Crownfront visuals and sound effects are original procedural work created for this project.\nNo third-party art, music or sound asset packs are included.\nGodot Engine and its bundled components are covered by GODOT-LICENSES.txt.\n", compress_type=zipfile.ZIP_DEFLATED)
+                target.writestr("CROWNFRONT-ASSETS.txt", "Crownfront pixel character artwork, procedural scenery and synthesized sound effects are original work created for this project.\nNo third-party art, music or sound asset packs are included.\nGodot Engine and its bundled components are covered by GODOT-LICENSES.txt.\n", compress_type=zipfile.ZIP_DEFLATED)
         temporary.replace(output)
     finally:
         if temporary.exists():

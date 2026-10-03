@@ -1,6 +1,6 @@
 class_name CombatEntity
 extends Node2D
-## Shared targeting, friendly-fire guard, damage, death and procedural presentation.
+## Shared targeting, damage and original pixel character presentation.
 ## All moving entities share terrain-safe pathing; actors do not form solid roadblocks.
 
 signal died(entity: CombatEntity)
@@ -34,10 +34,16 @@ var blocked_time: float = 0.0
 var hit_flash: float = 0.0
 var visual_time: float = 0.0
 var presentation_visible: bool = false
+var character_visual: CharacterVisual
+const CHARACTER_VISUAL = preload("res://scripts/visuals/character_visual.gd")
 const ART = preload("res://scripts/visuals/entity_art.gd")
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	if game.presentation_enabled and category in [&"army", &"worker", &"commander"]:
+		character_visual = CHARACTER_VISUAL.new()
+		character_visual.reset(global_position, true)
 	match_id = game.session.register_actor(self)
 	add_to_group("combatants")
 	game.spawn_effect(global_position, team.color, "spawn")
@@ -76,12 +82,24 @@ func tick(delta: float) -> void:
 	shot_time = maxf(0.0, shot_time - delta)
 	var was_visible: bool = presentation_visible
 	presentation_visible = _presentation_in_view()
-	# Node movement transforms cached draw commands automatically. Only workers,
-	# commander capes and transient combat feedback animate their local geometry.
-	# Offscreen actors still simulate fully; redraw on re-entry refreshes any
-	# cached health, animation or flash that changed while their art was culled.
-	if presentation_visible and (not was_visible or fading_feedback or kind in [&"worker", &"player"]):
+	# Static geometry stays cached; pixel poses redraw only when their sample changes.
+	if presentation_visible and (not was_visible or fading_feedback):
 		queue_redraw()
+
+
+func step_presentation(delta: float, force_sample: bool = false) -> void:
+	if character_visual == null or not alive:
+		return
+	var changed: bool = character_visual.step(self, delta, presentation_visible or force_sample)
+	if presentation_visible and (changed or (kind == &"player" and game.session.ticks % 3 == 0)):
+		queue_redraw()
+
+
+func note_visual_attack(heading: Vector2, heavy: bool = false) -> void:
+	if character_visual != null:
+		var follow_through: float = 0.45 if tactical_role == &"tank" else 0.32 if tactical_role == &"ranged" else 0.28
+		var duration: float = 0.22 if kind == &"player" else minf(follow_through, attack_cooldown * 0.65)
+		character_visual.note_attack(heading, duration, heavy)
 
 
 func _presentation_in_view() -> bool:
@@ -133,6 +151,7 @@ func attack(target: CombatEntity) -> void:
 	cooldown = attack_cooldown
 	shot_time = 0.22
 	shot_end = target.global_position
+	note_visual_attack(global_position.direction_to(shot_end))
 	queue_redraw()
 	var sound: StringName = &"melee"
 	if tactical_role == &"ranged":
@@ -166,6 +185,8 @@ func apply_stun(duration: float) -> bool:
 	if not alive or category not in [&"commander", &"army"] or stun_remaining > 0.0 or stun_immunity > 0.0 or duration <= 0.0:
 		return false
 	stun_remaining = duration
+	if character_visual != null:
+		character_visual.cancel_attack()
 	if has_method("cancel_action"):
 		call("cancel_action")
 	game.session.publish({"type": "stun", "entity_id": match_id, "duration": duration, "team": team.team_id})
@@ -174,6 +195,7 @@ func apply_stun(duration: float) -> bool:
 
 
 func die() -> void:
+	game.spawn_character_remnant(self)
 	game.spawn_effect(global_position, team.color, "death")
 	alive = false
 	if game.coordination != null:
@@ -217,20 +239,19 @@ func travel_toward(destination: Vector2, delta: float) -> void:
 func _draw() -> void:
 	if team == null or not alive:
 		return
-	if stun_remaining > 0.0:
+	if stun_remaining > 0.0 and character_visual == null:
 		draw_arc(Vector2(0, -body_radius - 12), 8, 0, TAU, 12, Color("ffe399"), 2)
 	if rally_buff > 0.0:
 		draw_arc(Vector2.ZERO, body_radius + 7.0, 0.0, TAU, 24, Color("edce8e"), 2.0, true)
 	var tint: Color = team.color.lerp(Color.WHITE, hit_flash / 0.16 * 0.7)
-	# Small reaction in the silhouette without shaking the camera or hiding hits.
-	var recoil := Vector2.ZERO
 	var art_kind: StringName = tactical_role if category == &"army" else kind
-	if shot_time > 0 and art_kind in [&"melee", &"tank", &"player"]:
-		recoil = global_position.direction_to(shot_end) * sin(shot_time / 0.22 * PI) * (3.0 if art_kind == &"tank" else 2.0)
-	ART.paint(self, art_kind, tint, visual_time * 6.0, recoil)
+	if character_visual != null:
+		character_visual.paint(self, art_kind, team.team_id, hit_flash)
+	else:
+		ART.paint(self, art_kind, tint, visual_time * 6.0)
 	draw_set_transform(Vector2.ZERO)
 	# Team emblems remain distinguishable in grayscale: Azure disk / Ember chevron.
-	var badge := Vector2(0, 2) if kind not in [&"king", &"tower"] else Vector2(0, -12)
+	var badge := Vector2(0, -16) if kind not in [&"king", &"tower"] else Vector2(0, -12)
 	if team.team_id == 1:
 		draw_circle(badge, 3.2, Color("edf3dc"))
 	else:
@@ -272,7 +293,7 @@ func _draw() -> void:
 			if kind in [&"king", &"tower"]:
 				draw_circle(Vector2(0,-22),6*(shot_time/0.22),Color("ffe8a8"))
 			draw_circle(tip, 4 if kind == &"king" else 2, Color.WHITE)
-		else:
+		elif character_visual == null:
 			var angle: float = end.angle()
 			draw_arc(Vector2.ZERO, 39, angle-0.9+progress, angle+0.5+progress, 12, Color(1,0.92,0.7,shot_time/0.22), 4, true)
 

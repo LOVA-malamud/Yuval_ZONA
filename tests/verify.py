@@ -22,7 +22,7 @@ REGRESSIONS = (
     "localization_regression", "settings_audio_regression", "onboarding_regression",
     "polish_regression", "game_lab", "step_parity", "definition_regression", "difficulty_regression",
     "combat_rework_regression", "economy_towers_regression", "deployment_policy_regression",
-    "hud_rework_regression", "economy_pacing_lab",
+    "hud_rework_regression", "economy_pacing_lab", "pixel_animation_regression",
 )
 
 
@@ -39,6 +39,18 @@ def diagnostics(log: str, fixture: str) -> list[str]:
             if not expected:
                 errors.append(line)
     return errors
+
+
+def project_digest(project: Path) -> str:
+    """Fingerprint production code and artwork, including uncommitted assets."""
+    digest = hashlib.sha256()
+    for directory in ("scripts", "resources", "scenes", "localization", "assets"):
+        for path in sorted((project / directory).rglob("*")):
+            if path.is_file() and path.suffix in (".gd", ".tres", ".tscn", ".png", ".svg", ".json"):
+                digest.update(str(path.relative_to(project)).encode())
+                digest.update(path.read_bytes())
+    digest.update((project / "project.godot").read_bytes())
+    return digest.hexdigest()
 
 
 def main() -> int:
@@ -70,13 +82,7 @@ def main() -> int:
             shutil.copytree(ROOT, stage, ignore=shutil.ignore_patterns(
                 ".git", ".godot", ".aws", ".codex", "artifacts", "builds", "__pycache__"))
         (stage / "tests/artifacts").mkdir(exist_ok=True)
-        digest = hashlib.sha256()
-        for directory in ("scripts", "resources", "scenes", "localization"):
-            for path in sorted((stage / directory).rglob("*")):
-                if path.is_file() and path.suffix in (".gd", ".tres", ".tscn"):
-                    digest.update(str(path.relative_to(stage)).encode())
-                    digest.update(path.read_bytes())
-        digest.update((stage / "project.godot").read_bytes())
+        source_digest = project_digest(stage)
         env = os.environ.copy()
         for name in ("XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_CACHE_HOME"):
             env[name] = str(Path(temporary) / name.lower())
@@ -166,7 +172,7 @@ def main() -> int:
                 run("render_parity", [args.godot, "--path", str(stage), "--script", "tests/render_parity.gd"])
         shutil.copytree(stage / "tests/artifacts", output / "artifacts", dirs_exist_ok=True)
     summary = dict(suite=args.suite, commit=commit, engine=engine, checks=checks,
-                   source_digest=digest.hexdigest(),
+                   source_digest=source_digest,
                    passed=all(check["passed"] for check in checks), artifacts=str(output / "artifacts"))
     (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     return 0 if summary["passed"] else 1

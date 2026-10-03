@@ -523,6 +523,20 @@ func spawn_effect(point: Vector2, tint: Color, type: String) -> void:
 	effect.tree_exited.connect(func(): effect_count -= 1)
 	add_child(effect)
 
+func spawn_character_remnant(actor: CombatEntity) -> void:
+	if not presentation_enabled or actor.character_visual == null or effect_count >= MAX_EFFECTS:
+		return
+	var remnant = preload("res://scripts/visuals/character_remnant.gd").new()
+	remnant.game = self
+	remnant.position = actor.global_position
+	remnant.role = actor.tactical_role if actor.category == &"army" else actor.kind
+	remnant.team_id = actor.team.team_id
+	remnant.facing_index = actor.character_visual.direction
+	effect_count += 1
+	remnant.tree_exited.connect(func(): effect_count -= 1)
+	add_child(remnant)
+
+
 func launch_projectile(team_id: int, start: Vector2, aim: Vector2, damage: float, structure_multiplier: float, commander_id: int = 0) -> void:
 	var projectile = PROJECTILE_SCRIPT.new()
 	projectile.configure(self, team_id, start, aim, damage, structure_multiplier, commander_id)

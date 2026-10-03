@@ -46,6 +46,8 @@ func _run() -> void:
 	check(game.effect_count == game.MAX_EFFECTS and _effects().size() == game.MAX_EFFECTS, "500 simultaneous ordinary effects remain capped at 48")
 	game.spawn_effect(Vector2(400, 1300), Color.WHITE, "crownfall")
 	check(game.effect_count == game.MAX_EFFECTS + 1, "King destruction bypasses an exhausted ordinary visual budget")
+	# Ordinary action effects now expire on authoritative session time.
+	game.session.ticks += 120
 	for effect in _effects():
 		effect._process(2.0)
 	await process_frame

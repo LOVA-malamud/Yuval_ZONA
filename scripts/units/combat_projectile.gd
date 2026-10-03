@@ -1,6 +1,7 @@
 extends Node2D
 ## A ranged shot travels to the position aimed at when fired.
 
+const Visual = preload("res://scripts/visuals/character_visual.gd")
 const SPEED: float = 1400.0
 const RADIUS: float = 5.0
 
@@ -25,6 +26,7 @@ func configure(manager, team_id: int, start: Vector2, aim: Vector2, damage: floa
 
 
 func _ready() -> void:
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	add_to_group("projectiles")
 	queue_redraw()
 
@@ -62,5 +64,5 @@ func step_gameplay(delta: float) -> void:
 
 
 func _draw() -> void:
-	draw_line(-direction * 14.0, Vector2.ZERO, Color("edc46e", 0.65), 3.0, true)
-	draw_circle(Vector2.ZERO, RADIUS, Color("f8efd4"))
+	var facing_index: int = posmod(int(round(direction.angle() / (PI / 4.0))),8)
+	Visual.paint_effect(self,&"arrow",facing_index,0,Vector2.ZERO)

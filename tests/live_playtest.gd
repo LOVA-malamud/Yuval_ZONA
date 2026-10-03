@@ -29,6 +29,7 @@ func _run() -> void:
 	GameSettings.load_settings()
 	Localization.set_language("en", false)
 	game = load("res://scenes/main/main.tscn").instantiate()
+	game.pause_on_focus_loss = false
 	get_tree().root.add_child(game)
 	get_tree().current_scene = game
 	await get_tree().create_timer(0.4).timeout
@@ -68,7 +69,7 @@ func _run() -> void:
 	game.entities.add_child(enemy)
 	var enemy_hp: float = enemy.health
 	Input.action_press("attack")
-	await get_tree().create_timer(0.15).timeout
+	await get_tree().create_timer(game.balance.commander_strike_windup + 0.12).timeout
 	Input.action_release("attack")
 	check(enemy.health < enemy_hp,"SPACE input attacks enemy")
 	await click_at(game.player.get_canvas_transform() * enemy.position)
@@ -110,10 +111,12 @@ func _run() -> void:
 	await click_control(find_button(game.hud.command_panel, "COMMAND_CLOSE"))
 	game.player.position = game.pads[0].position+Vector2(-45,0)
 	await get_tree().create_timer(0.2).timeout
-	await click_control(game.hud.structure_button)
-	check(game.pads[0].occupied(),"Context build button constructs tower")
+	await click_control(game.hud.tower_buttons[&"guard"])
+	await get_tree().create_timer(0.08).timeout
+	check(game.pads[0].occupied(),"Context Guard Tower choice constructs tower")
 	await get_tree().create_timer(0.2).timeout
 	await click_control(game.hud.structure_button)
+	await get_tree().create_timer(0.08).timeout
 	check(game.pads[0].tower.level == 2,"Context button upgrades owned tower")
 	var old_zoom: float = game.player.get_node("Camera2D").zoom.x
 	var wheel := InputEventMouseButton.new()
@@ -182,6 +185,8 @@ func _run() -> void:
 	Input.parse_input_event(escape)
 	await get_tree().process_frame
 	check(not get_tree().paused,"Escape resumes")
+	# Enable focus-loss behavior only for its explicit notification check.
+	game.pause_on_focus_loss = true
 	game.player.controller.touch_index = 7
 	game.player.controller.touch_direction = Vector2.RIGHT
 	game.notification(MainLoop.NOTIFICATION_APPLICATION_FOCUS_OUT)
@@ -190,12 +195,14 @@ func _run() -> void:
 	game.notification(Node.NOTIFICATION_WM_GO_BACK_REQUEST)
 	await get_tree().process_frame
 	check(not get_tree().paused, "System Back resumes paused match")
+	game.pause_on_focus_loss = false
 	get_viewport().push_input(escape, true)
 	await get_tree().process_frame
 	await click_control(find_button(game.hud.result_overlay, "RESTART"))
 	await get_tree().process_frame
 	await get_tree().process_frame
 	game = get_tree().current_scene
+	game.pause_on_focus_loss = false
 	check(game.commanders.size() == 4 and not game.match_finished,"Restart produces fresh four-commander match")
 	get_viewport().push_input(escape, true)
 	await get_tree().process_frame
@@ -213,6 +220,7 @@ func _run() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	game = get_tree().current_scene
+	game.pause_on_focus_loss = false
 	check(game.tutorial_mode and game.tutorial.stage == TutorialDirector.Stage.MOVE, "Mouse starts a separate playable tutorial")
 	Input.action_press("move_right")
 	await get_tree().create_timer(0.4).timeout
@@ -224,11 +232,13 @@ func _run() -> void:
 	await get_tree().process_frame
 	await get_tree().process_frame
 	game = get_tree().current_scene
+	game.pause_on_focus_loss = false
 	check(game.tutorial_mode and game.tutorial.stage == TutorialDirector.Stage.MOVE, "Mouse restart resets tutorial progress")
 	await click_control(find_button(game.hud.guidance_panel, "TUTORIAL_SKIP"))
 	await get_tree().process_frame
 	await get_tree().process_frame
 	game = get_tree().current_scene
+	game.pause_on_focus_loss = false
 	check(not game.tutorial_mode and game.tutorial == null, "Mouse skips tutorial into a fresh ordinary match")
 	check(game.rules.difficulty == &"hard" and game.teams[0].money == game.teams[1].money and game.teams[0].wood == game.teams[1].wood and game.teams[0].worker_count == game.teams[1].worker_count, "Fresh match applies Hard with equal team resources")
 	await capture_languages()

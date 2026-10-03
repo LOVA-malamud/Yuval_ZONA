@@ -8,6 +8,12 @@
 - [Rework verification](rework-verification.md): implemented gameplay and remaining acceptance checks.
 - [Rework balance results](rework-balance-results.md): measured snapshots and unfinished integrated pacing work.
 
+## Pixel art branch
+
+- [Manual-playtest animation fixes](pixel-art-animation-fix.md): screenshot issue index, stale-cache recovery, equipment attachment and corrected launch commands.
+- [Pixel art implementation and verification](pixel-art-overhaul-verification.md): original character animation, preview commands, parity and performance evidence.
+- [Approved action overhaul plan](pixel-art-action-overhaul-plan.md): crisp medieval character/effect scope and acceptance criteria.
+
 ## Historical evidence and proposals
 
 - [Commander overhaul status](command-overhaul-status.md) and [verification](overhaul-verification.md): earlier local snapshot, before the integrated gameplay rework.

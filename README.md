@@ -14,7 +14,7 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 - Persistent ally orders, visible spending/plans, local Rally and Regroup commands
 - Focus targeting, battle alerts, strategic minimap and responsive HUD
 - Playable tutorial, match recap and Easy/Standard/Hard AI behavior
-- Procedural visuals and original synthesized sound effects
+- Original eight-direction medieval pixel characters, animated combat and worker actions, and synthesized sound effects
 - English and Russian localization with persistent preferences
 
 ## Controls
@@ -37,6 +37,16 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 On a touchscreen, drag from the left side to move. Mobile auto-attack works independently of movement. Drag an ability button to aim and release to activate; drag back into the button to cancel. A quick tap follows your movement facing or a nearby target when stationary. Use Interact near your King to channel recovery or near a build pad to select a tower. Army, King, and Economy controls open in collapsible drawers. Landscape safe areas and a portrait rotate prompt are supported; thumb reach and dense-combat readability still require phone playtests.
 
 Heavy strike commits your facing through a visible 0.6-second wind-up. It deals 48 damage and briefly stuns commanders and troops when their guard fails. Front-facing guard and lateral dash provide counterplay; missing leaves you vulnerable during recovery.
+
+## Character animation preview
+
+Open [the offline sprite preview](assets/pixel_art/preview.html) to inspect actions, eight facings, both teams, and movement independently. Run the native looping preview with:
+
+```sh
+python3 tools/run_game.py --preview
+```
+
+See the [pixel art implementation and verification](docs/pixel-art-overhaul-verification.md) for timing, source artwork and review evidence.
 
 ## Text-only game lab
 
@@ -80,6 +90,14 @@ The full interface supports **English** and **Русский**. Fresh installati
 2. Clone this repository.
 3. Import [project.godot](project.godot) in Godot.
 4. Press **F5** to run the main project.
+
+To run from a terminal with fresh asset imports:
+
+```sh
+python3 tools/run_game.py
+```
+
+The launcher imports assets before starting. Direct `godot --path .` execution can retain an older local atlas cache after artwork changes; the character renderer detects mismatched atlas dimensions and recovers from source PNGs during local development. Restart an already-running game after updating artwork.
 
 The project uses GDScript and Godot's Compatibility renderer. It has no external runtime services, accounts, networking, or downloaded asset dependencies.
 

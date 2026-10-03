@@ -108,19 +108,3 @@ func _find_tree() -> void:
 		state = State.WALK_TO_TREE
 	elif carried > 0:
 		state = State.RETURN
-
-
-func _draw() -> void:
-	super._draw()
-	if state in [State.WALK_TO_TREE,State.RETURN]:
-		var step: float = sin(visual_time*10)*3
-		draw_line(Vector2(-5,13),Vector2(-5,19+step),Color("182d2b"),4)
-		draw_line(Vector2(5,13),Vector2(5,19-step),Color("182d2b"),4)
-	if carried > 0:
-		for i in range(3):
-			draw_line(Vector2(-8, 7+i*4), Vector2(8, 7+i*4), Color("ca9d60"), 4)
-	if state == State.GATHER:
-		var swing: float = sin(visual_time * 9.0)
-		draw_line(Vector2(12,0),Vector2(24+swing*7,-16+absf(swing)*10),Color("d9e2cf"),3)
-		if swing > 0.75:
-			draw_circle(Vector2(29,-6),2,Color("e7bf74"))

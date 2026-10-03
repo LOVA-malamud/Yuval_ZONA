@@ -13,7 +13,7 @@ import tarfile
 import tempfile
 import time
 
-from verify import diagnostics
+from verify import diagnostics, project_digest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -55,6 +55,7 @@ def main():
     elif godot_running():
         raise RuntimeError('Close other Godot instances or use --wait-for-idle')
     reports = []
+    source_digests = {}
     for version in ('baseline', 'current'):
         with tempfile.TemporaryDirectory(prefix='crownfront-performance-') as temporary:
             stage = Path(temporary) / 'project'
@@ -78,7 +79,8 @@ def main():
                         '\t\t\tif not projectile.is_queued_for_deletion():\n'
                         '\t\t\t\tprojectile._physics_process(STEP)\n'
                         '\t\tvar after_units := Time.get_ticks_usec()')
-                source = source.replace('"p95": values[', '"p50": values[int(values.size() * 0.5)], "p95": values[')
+                if '"p50":' not in source:
+                    source = source.replace('"p95": values[', '"p50": values[int(values.size() * 0.5)], "p95": values[')
                 source = source.replace('\troot.add_child(game)\n\tcurrent_scene = game',
                     '\tvar capture_viewport: Viewport = root\n'
                     '\tif mode != "headless":\n'
@@ -97,6 +99,7 @@ def main():
             else:
                 shutil.copytree(ROOT, stage, ignore=shutil.ignore_patterns('.git', '.godot', '.aws', '.codex', 'artifacts', 'builds', '__pycache__'))
             (stage / 'tests/artifacts').mkdir(exist_ok=True)
+            source_digests[version] = project_digest(stage)
             env = os.environ.copy()
             for key in ('XDG_DATA_HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME'):
                 env[key] = str(Path(temporary) / key.lower())
@@ -112,7 +115,10 @@ def main():
             for index in range(3):
                 label = f'{version}_{index+1}'
                 log = run(label, ['--script', 'tests/performance_probe.gd', '--', args.mode, '1280x720', label, '15'])
-                report = json.loads(next(line.removeprefix('PERFORMANCE REPORT ') for line in log.splitlines() if line.startswith('PERFORMANCE REPORT ')))
+                payload = next((line.removeprefix('PERFORMANCE REPORT ') for line in log.splitlines() if line.startswith('PERFORMANCE REPORT ')), None)
+                if payload is None:
+                    raise RuntimeError(f'{label} ended before its report; keep the measurement window open until it exits automatically')
+                report = json.loads(payload)
                 reports.append(report)
                 measurement = 'total_script_ms' if args.mode == 'headless' else 'frame_ms'
                 print(f'{label}: {measurement} p95={report["metrics"][measurement]["p95"]:.3f}ms', flush=True)
@@ -123,7 +129,7 @@ def main():
         baseline = median(r['metrics'][measurement][metric] for r in reports if r['label'].startswith('baseline'))
         current = median(r['metrics'][measurement][metric] for r in reports if r['label'].startswith('current'))
         summary[metric] = dict(baseline_ms=baseline, current_ms=current, change_percent=(current / baseline - 1) * 100)
-    payload = dict(hardware=platform.uname()._asdict(), baseline=args.baseline, mode=args.mode, runs=reports, summary=summary,
+    payload = dict(source_digests=source_digests, hardware=platform.uname()._asdict(), baseline=args.baseline, mode=args.mode, runs=reports, summary=summary,
                    baseline_directory=str(args.baseline_dir.resolve()) if args.baseline_dir else None,
                    baseline_correction='Baseline fixture adapted for p50, exact-size rendering and idle input; projectile phase added only to pre-session baselines.',
                    needs_investigation=summary['p95']['change_percent'] > 10)

@@ -25,6 +25,8 @@ func _run() -> void:
 			if tick in [0, 60, 120]:
 				game.session.submit(MatchCommand.new(MatchCommand.Action.RECRUIT, 1, {"id": &"ranged", "route": 1}))
 			if tick in [20, 80, 140]:
+				game.player.cancel_action()
+				game.session.submit(MatchCommand.new(MatchCommand.Action.ABILITY,1,{"ability_id": [&"dash", &"guard", &"heavy"][[20,80,140].find(tick)], "direction": Vector2.RIGHT}))
 				game.launch_projectile(2, Vector2(2280, 1450), game.player.position, 5.0, 1.0, 3)
 			game.session.step()
 			var state := Trace.snapshot(game)

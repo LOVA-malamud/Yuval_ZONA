@@ -240,7 +240,7 @@ func _build_interface() -> void:
 		if compact_mode:
 			var scroll := ScrollContainer.new()
 			scroll.name = title
-			scroll.custom_minimum_size.y = 180
+			scroll.custom_minimum_size.y = 120
 			scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 			tabs.add_child(scroll)
 			page.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -340,7 +340,7 @@ func _build_mobile_controls() -> void:
 	)
 	controls.add_child(drawer_button)
 	drawer_button.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	drawer_button.offset_left = -152
+	drawer_button.offset_left = -18 - maxf(134.0, drawer_button.get_combined_minimum_size().x)
 	drawer_button.offset_right = -18
 	drawer_button.offset_top = 198
 	drawer_button.offset_bottom = 262
@@ -571,6 +571,7 @@ func _refresh() -> void:
 			healing_label.text = tr("STATUS_STUNNED")
 	if drawer_button != null:
 		drawer_button.text = tr("DRAWER_CLOSE" if shop_dock.visible else "DRAWER_OPEN")
+		drawer_button.offset_left = -18 - maxf(134.0, drawer_button.get_combined_minimum_size().x)
 	if command_panel != null and command_panel.visible:
 		command_panel.refresh()
 	rally_button.text = tr("RALLY_BUTTON") if game.player.rally_cooldown <= 0.0 else tr("RALLY_COOLDOWN") % ceili(game.player.rally_cooldown)
@@ -942,7 +943,8 @@ func _apply_safe_area() -> void:
 	controls.offset_right = safe.end.x - bounds.end.x
 	controls.offset_bottom = safe.end.y - bounds.end.y
 	if compact_mode:
-		shop_dock.size.y = maxf(240.0, safe.size.y - 130.0)
+		# Reserve the bottom combat-button strip even when the drawer is open.
+		shop_dock.size.y = maxf(240.0, safe.size.y - shop_dock.position.y - 112.0)
 	if game.force_touch_controls or DisplayServer.is_touchscreen_available():
 		_ensure_touch_targets(controls)
 

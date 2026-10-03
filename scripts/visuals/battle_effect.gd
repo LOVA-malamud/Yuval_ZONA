@@ -1,10 +1,16 @@
 extends Node2D
+const Visual = preload("res://scripts/visuals/character_visual.gd")
+var game
+var born_tick: int = 0
 var tint: Color = Color.WHITE
 var age: float = 0.0
 var duration: float = 0.45
 var effect: String = "spawn"
 
 func _ready() -> void:
+	game = get_parent()
+	born_tick = game.session.ticks
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if effect == "crownfall":
 		duration = 1.2
 		process_mode = Node.PROCESS_MODE_ALWAYS
@@ -18,10 +24,14 @@ func _ready() -> void:
 		duration = 0.6
 
 func _process(delta: float) -> void:
-	age += delta
-	if age >= duration:
+	# Action effects sample the session clock. Preserve the existing victory
+	# crown burst on its always-processing result-screen clock.
+	var next_age: float = age + delta if effect == "crownfall" else (game.session.ticks - born_tick) * MatchSession.STEP
+	if next_age >= duration:
 		queue_free()
-	queue_redraw()
+	elif next_age != age:
+		age = next_age
+		queue_redraw()
 
 func _draw() -> void:
 	var t: float = clampf(age / duration, 0, 1)
@@ -29,14 +39,9 @@ func _draw() -> void:
 	if effect == "rally":
 		draw_arc(Vector2.ZERO, 300.0 * t, 0.0, TAU, 48, color, 3.0, true)
 		return
-	if effect == "deposit":
-		var p := Vector2(0, -20 - t * 35)
-		draw_colored_polygon(PackedVector2Array([p+Vector2(0,-6),p+Vector2(5,0),p+Vector2(0,6),p+Vector2(-5,0)]), color)
-		return
-	if effect == "impact":
-		for i in range(5):
-			var direction := Vector2.from_angle(i * TAU / 5)
-			draw_line(direction * (4 + t * 10), direction * (12 + t * 20), color, 2, true)
+	if effect in ["deposit", "impact", "death", "spawn"]:
+		var pixel_effect: StringName = &"block" if effect == "impact" else StringName(effect)
+		Visual.paint_effect(self,pixel_effect,0,clampi(int(t*Visual.FRAMES),0,Visual.FRAMES-1),Vector2(0,-10))
 		return
 	if effect == "rubble":
 		for i in range(6):
@@ -54,7 +59,3 @@ func _draw() -> void:
 	if effect == "upgrade":
 		for i in range(3):
 			draw_arc(Vector2(0,-t*50+i*12),25,0,PI,16,color,2,true)
-	if effect == "death":
-		for i in range(5):
-			var p := Vector2.from_angle(i * TAU / 5) * (8 + t*24)
-			draw_circle(p, 3*(1-t), color)
