@@ -1,0 +1,6 @@
+{
+ "current": {},
+ "w4": {"$a": {"workers": 4, "aggressive_workers": 2}},
+ "w4_bank365_mass6": {"$a": {"workers": 4, "aggressive_workers": 2, "army_bank": 365, "mass_size": 6, "mass_wait": 20}},
+ "w4_bank365_nomass": {"$a": {"workers": 4, "aggressive_workers": 2, "army_bank": 365, "mass_size": 3, "mass_wait": 6}}
+}

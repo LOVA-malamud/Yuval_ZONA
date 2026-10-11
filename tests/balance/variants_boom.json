@@ -1,0 +1,8 @@
+{
+ "current": {},
+ "w5": {"$a": {"workers": 5, "aggressive_workers": 4}},
+ "bank365": {"$a": {"army_bank": 365}},
+ "no_eco_upgrades": {"$a": {"upgrade_interval": 1000}},
+ "ranged_only": {"$a": {"roster": ["ranged"]}},
+ "w5_noupg": {"$a": {"workers": 5, "aggressive_workers": 4, "upgrade_interval": 1000}}
+}

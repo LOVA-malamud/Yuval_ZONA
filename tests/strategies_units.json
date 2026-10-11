@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "archetypes": {
+    "only_melee": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 365,
+      "tower_interval": 0,
+      "upgrade_interval": 1000,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "melee"
+      ]
+    },
+    "only_ranged": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 365,
+      "tower_interval": 0,
+      "upgrade_interval": 1000,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "ranged"
+      ]
+    },
+    "only_tank": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 365,
+      "tower_interval": 0,
+      "upgrade_interval": 1000,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "tank"
+      ]
+    }
+  },
+  "wheel": {
+    "only_melee": [
+      "only_ranged"
+    ],
+    "only_ranged": [
+      "only_tank"
+    ],
+    "only_tank": [
+      "only_melee"
+    ]
+  }
+}

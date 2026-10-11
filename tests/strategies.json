@@ -1,0 +1,113 @@
+{
+  "version": 1,
+  "archetypes": {
+    "rush": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 365,
+      "tower_interval": 0,
+      "upgrade_interval": 1000,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "melee"
+      ]
+    },
+    "boom": {
+      "workers": 7,
+      "aggressive_workers": 5,
+      "army_bank": 600,
+      "tower_interval": 0,
+      "upgrade_interval": 2,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "ranged",
+        "ranged",
+        "melee"
+      ],
+      "upgrade_order": [
+        7,
+        7,
+        5,
+        6,
+        7,
+        7
+      ]
+    },
+    "turtle": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 250,
+      "tower_interval": 2,
+      "upgrade_interval": 3,
+      "group_size": 3,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "tank",
+        "melee"
+      ],
+      "tower": "long_range",
+      "upgrade_order": [
+        0,
+        1,
+        3,
+        0,
+        1,
+        2
+      ],
+      "king_level_cap": 8
+    },
+    "tank_push": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 365,
+      "tower_interval": 0,
+      "upgrade_interval": 1000,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "tank"
+      ]
+    },
+    "skirmish": {
+      "workers": 4,
+      "aggressive_workers": 2,
+      "army_bank": 365,
+      "tower_interval": 0,
+      "upgrade_interval": 1000,
+      "group_size": 5,
+      "mass_size": 6,
+      "mass_wait": 20,
+      "roster": [
+        "ranged"
+      ]
+    }
+  },
+  "wheel": {
+    "rush": [
+      "boom",
+      "skirmish"
+    ],
+    "boom": [
+      "turtle",
+      "tank_push"
+    ],
+    "turtle": [
+      "rush",
+      "skirmish"
+    ],
+    "tank_push": [
+      "turtle",
+      "rush"
+    ],
+    "skirmish": [
+      "tank_push",
+      "boom"
+    ]
+  }
+}

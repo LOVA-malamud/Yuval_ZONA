@@ -1,0 +1,7 @@
+{"version":1,"scenarios":{
+ "tanks_only":{"teams":{"1":{"strategy":{"roster":["tank"]}}}},
+ "tanks_bank700":{"teams":{"1":{"strategy":{"roster":["tank"],"army_bank":700}}}},
+ "tanks_workers6":{"teams":{"1":{"strategy":{"roster":["tank"],"workers":6,"aggressive_workers":4}}}},
+ "tank_ranged_mix":{"teams":{"1":{"strategy":{"roster":["tank","tank","ranged"]}}}},
+ "tanks_econ_up":{"teams":{"1":{"strategy":{"roster":["tank"],"upgrade_order":[7,7,5,6,7,7],"upgrade_interval":3}}}}
+}}

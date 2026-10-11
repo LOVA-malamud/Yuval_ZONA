@@ -1,0 +1,10 @@
+{"version":1,"scenarios":{
+ "default_vs_default":{},
+ "more_workers":{"teams":{"1":{"strategy":{"workers":6,"aggressive_workers":4}}}},
+ "towers_all":{"teams":{"1":{"strategy":{"tower_interval":2}}}},
+ "king_upgrades":{"teams":{"1":{"strategy":{"upgrade_order":[0,1,2,0,1,2,3],"king_level_cap":8,"upgrade_interval":3}}}},
+ "econ_upgrades":{"teams":{"1":{"strategy":{"upgrade_order":[7,7,5,6,7,7],"upgrade_interval":3}}}},
+ "tanks_only":{"teams":{"1":{"strategy":{"roster":["tank"]}}}},
+ "ranged_only":{"teams":{"1":{"strategy":{"roster":["ranged"]}}}},
+ "melee_swarm":{"teams":{"1":{"strategy":{"roster":["melee"],"group_size":8}}}}
+}}

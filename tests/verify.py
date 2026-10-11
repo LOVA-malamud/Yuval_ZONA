@@ -142,7 +142,7 @@ def main() -> int:
             if args.suite == "tuning" and all(check["passed"] for check in checks):
                 run("pacing_matches", ["python3", "tests/run_lab.py", "--suite", "matches", "--seeds", ",".join(map(str, range(42, 62))),
                                        "--jobs", str(args.match_jobs), "--godot", args.godot, "--scenarios", "tests/scenarios/pacing.json",
-                                       "--sample-seconds", "5", "--no-html", "--output", "tests/artifacts/pacing.json"], 18000)
+                                       "--sample-seconds", "5", "--no-html", "--output", "tests/artifacts/pacing.json"], 72000)
                 if (stage / "tests/artifacts/pacing.json").exists():
                     run("pacing_replay", ["python3", "tests/validate_replay.py", "tests/artifacts/pacing.json"])
                     run("pacing_selection", ["python3", "tests/select_pacing.py", "tests/artifacts/pacing.json", "--output", "tests/artifacts/pacing_selection.json"])

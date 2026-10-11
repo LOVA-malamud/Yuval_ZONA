@@ -1,0 +1,6 @@
+{"version":1,"scenarios":{
+ "tanks_bank700":{"teams":{"1":{"strategy":{"roster":["tank"],"army_bank":700}}}},
+ "tanks_bank1100":{"teams":{"1":{"strategy":{"roster":["tank"],"army_bank":1100}}}},
+ "tanks_bank700_econ":{"teams":{"1":{"strategy":{"roster":["tank"],"army_bank":700,"upgrade_order":[7,7,5,6,7,7],"upgrade_interval":3}}}},
+ "tanks_bank1100_econ":{"teams":{"1":{"strategy":{"roster":["tank"],"army_bank":1100,"upgrade_order":[7,7,5,6,7,7],"upgrade_interval":3}}}}
+}}

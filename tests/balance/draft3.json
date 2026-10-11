@@ -1,0 +1,49 @@
+{
+  "units": {
+    "melee": {
+      "money_cost": 40,
+      "max_health": 100,
+      "damage": 20,
+      "move_speed": 135
+    },
+    "ranged": {
+      "money_cost": 70,
+      "max_health": 60,
+      "damage": 16,
+      "attack_range": 190,
+      "move_speed": 100
+    },
+    "tank": {
+      "money_cost": 150,
+      "max_health": 450,
+      "move_speed": 65,
+      "armor": 8,
+      "structure_damage_multiplier": 2.0
+    }
+  },
+  "towers": {
+    "guard": {
+      "money_cost": 120,
+      "damage": 24
+    },
+    "splash": {
+      "splash_radius": 85,
+      "damage": 16
+    },
+    "long_range": {
+      "damage": 60,
+      "minimum_range": 140
+    }
+  },
+  "upgrades": {
+    "king_damage": {
+      "amount": 14,
+      "cost_growth": 1.45
+    },
+    "king_range": {
+      "amount": 32,
+      "cost_growth": 1.45
+    }
+  },
+  "worker_cost": 80
+}

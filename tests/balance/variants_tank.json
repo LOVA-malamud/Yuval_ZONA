@@ -1,0 +1,9 @@
+{
+ "current": {},
+ "armor15": {"units": {"tank": {"armor": 15}}},
+ "armor15_cost130": {"units": {"tank": {"armor": 15, "money_cost": 130}}},
+ "armor15_dmg32": {"units": {"tank": {"armor": 15, "damage": 32}}},
+ "armor15_cost130_dmg32": {"units": {"tank": {"armor": 15, "money_cost": 130, "damage": 32}}},
+ "melee_cost50_armor15": {"units": {"tank": {"armor": 15}, "melee": {"money_cost": 50}}},
+ "tank_hp600_armor15": {"units": {"tank": {"armor": 15, "max_health": 600}}}
+}

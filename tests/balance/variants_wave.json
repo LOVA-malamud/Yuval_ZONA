@@ -1,0 +1,6 @@
+{
+ "worker80": {},
+ "mass5": {"$a": {"mass_size": 5, "mass_wait": 20}},
+ "mass12": {"$a": {"mass_size": 12, "mass_wait": 40}},
+ "worker120": {"worker_cost": 120}
+}

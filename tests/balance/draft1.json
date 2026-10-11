@@ -1,0 +1,5 @@
+{"units": {
+  "melee":  {"money_cost": 45, "move_speed": 120, "max_health": 100},
+  "ranged": {"money_cost": 70, "damage": 20, "attack_range": 200, "move_speed": 100},
+  "tank":   {"money_cost": 150, "max_health": 450, "move_speed": 65, "armor": 8, "structure_damage_multiplier": 2.0}
+}}

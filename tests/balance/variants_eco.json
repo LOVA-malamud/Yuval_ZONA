@@ -1,0 +1,7 @@
+{
+ "current": {},
+ "income100": {"upgrades": {"income": {"base_cost": 100}}},
+ "income140_g17": {"upgrades": {"income": {"base_cost": 140, "cost_growth": 1.7}}},
+ "eco_x2": {"upgrades": {"income": {"base_cost": 130}, "worker_capacity": {"base_cost": 60}, "worker_gather": {"base_cost": 90}}},
+ "eco_x2_income1": {"upgrades": {"income": {"base_cost": 130, "amount": 1}, "worker_capacity": {"base_cost": 60}, "worker_gather": {"base_cost": 90}}}
+}

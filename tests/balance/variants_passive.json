@@ -1,0 +1,4 @@
+{
+ "vs_passive": {"$b": {"group_size": 0, "army_bank": 99999, "tower_interval": 0}},
+ "vs_passive_melee26": {"units": {"melee": {"damage": 26}}, "$b": {"group_size": 0, "army_bank": 99999, "tower_interval": 0}}
+}

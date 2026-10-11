@@ -1,0 +1,9 @@
+{
+ "current": {},
+ "melee_dmg26": {"units": {"melee": {"damage": 26}}},
+ "king_dmg20": {"base_stats": {"king_damage": 20}},
+ "melee_dmg26_king20": {"units": {"melee": {"damage": 26}}, "base_stats": {"king_damage": 20}},
+ "melee_hp140": {"units": {"melee": {"max_health": 140}}},
+ "melee_hp140_cost50": {"units": {"melee": {"max_health": 140, "money_cost": 50}}},
+ "king_hp800": {"base_stats": {"king_health": 800}}
+}

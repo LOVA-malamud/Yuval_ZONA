@@ -1,0 +1,8 @@
+{
+ "worker80": {},
+ "worker120": {"worker_cost": 120},
+ "worker160": {"worker_cost": 160},
+ "worker120_income7": {"worker_cost": 120, "base_stats": {"income": 7}},
+ "worker160_income7": {"worker_cost": 160, "base_stats": {"income": 7}},
+ "worker120_income7_gather5": {"worker_cost": 120, "base_stats": {"income": 7, "worker_gather": 5}}
+}

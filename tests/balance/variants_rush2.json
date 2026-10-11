@@ -1,0 +1,9 @@
+{
+ "current": {},
+ "boom_bank900": {"$b": {"army_bank": 900}},
+ "boom_workers8_bank900": {"$b": {"army_bank": 900, "workers": 8, "aggressive_workers": 7}},
+ "rush_mass5": {"$a": {"mass_size": 5, "mass_wait": 10}},
+ "rush_nomass": {"$a": {"mass_size": 1, "mass_wait": 1}},
+ "rush_workers3": {"$a": {"workers": 3, "aggressive_workers": 3}},
+ "rush_bank60_group8": {"$a": {"army_bank": 60, "group_size": 8}}
+}
