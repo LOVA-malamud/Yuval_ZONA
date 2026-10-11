@@ -11,3 +11,4 @@ extends Resource
 @export var attack_range: float = 245.0
 @export var minimum_range: float = 0.0
 @export var splash_radius: float = 0.0
+@export var pierce: bool = false

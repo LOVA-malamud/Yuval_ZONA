@@ -9,11 +9,13 @@ from pathlib import Path
 TEAM_FIELDS = {"money": int, "wood": int, "workers": int}
 STATS = {"king_health", "king_damage", "king_attack_speed", "king_range", "worker_health", "worker_speed", "worker_capacity", "worker_gather", "income"}
 UNITS = {"melee", "ranged", "tank"}
-UNIT_FIELDS = {"money_cost", "max_health", "damage", "move_speed", "attack_range", "attack_cooldown", "detection_range", "body_radius", "structure_damage_multiplier"}
+UNIT_FIELDS = {"money_cost", "max_health", "damage", "move_speed", "attack_range", "attack_cooldown", "detection_range", "body_radius", "structure_damage_multiplier", "armor"}
 UPGRADES = {"king_health", "king_damage", "king_attack_speed", "king_range", "worker_speed", "worker_capacity", "worker_gather", "income"}
 UPGRADE_FIELDS = {"base_cost", "cost_growth", "amount", "maximum_level"}
 BALANCE_FIELDS = {"tower_money", "tower_wood", "tower_health", "tower_damage", "tower_range", "tower_cooldown", "tower_rebuild_delay", "build_reach", "ally_money_reserve", "ally_wood_reserve", "aggressive_decision_seconds", "economic_decision_seconds", "commander_health", "commander_strike_windup", "commander_respawn", "base_heal_cooldown"}
 BALANCE_FIELDS |= {"base_heal_rate", "base_heal_radius", "dash_distance", "dash_duration", "dash_cooldown", "guard_duration", "guard_cooldown", "guard_cone_degrees", "guard_damage_reduction", "guard_move_multiplier", "heavy_windup", "heavy_cooldown", "heavy_cone_degrees", "heavy_damage", "heavy_stun", "heavy_recovery", "heavy_move_multiplier", "ability_recovery"}
+STRATEGY_INTS = {"workers", "aggressive_workers", "group_size", "army_bank", "tower_interval", "upgrade_interval", "king_level_cap", "mass_size", "mass_wait"}
+STRATEGY_LISTS = {"roster": UNITS, "upgrade_order": set(range(8))}
 TOWERS = {"guard", "splash", "long_range"}
 TOWER_FIELDS = {"money_cost", "wood_cost", "max_health", "damage", "attack_cooldown", "attack_range", "minimum_range", "splash_radius"}
 DEPLOYMENT_FIELDS = {"window_size", "tolerance"}
@@ -27,7 +29,7 @@ def _number(value, path):
     if path.rsplit(".", 1)[-1] in INTEGER_FIELDS and not isinstance(value, int):
         raise ValueError(f"{path}: expected integer")
     leaf = path.rsplit(".", 1)[-1]
-    if leaf not in {"money", "wood", "workers", "money_cost", "worker_cost", "tower_money", "tower_wood", "ally_money_reserve", "ally_wood_reserve", "base_cost", "wood_cost", "minimum_range", "splash_radius", "tolerance"} and value == 0:
+    if leaf not in {"money", "wood", "workers", "money_cost", "worker_cost", "tower_money", "tower_wood", "ally_money_reserve", "ally_wood_reserve", "base_cost", "wood_cost", "minimum_range", "splash_radius", "tolerance", "armor"} and value == 0:
         raise ValueError(f"{path}: expected positive value")
 
 
@@ -38,6 +40,23 @@ def _fields(data, allowed, path):
         if key not in allowed:
             raise ValueError(f"{path}.{key}: unknown field")
         _number(value, f"{path}.{key}")
+
+
+def _strategy(data, path):
+    if not isinstance(data, dict):
+        raise ValueError(f"{path}: expected object")
+    for key, value in data.items():
+        if key in STRATEGY_INTS:
+            if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 100000:
+                raise ValueError(f"{path}.{key}: expected integer 0..100000")
+        elif key == "tower":
+            if value not in TOWERS:
+                raise ValueError(f"{path}.tower: expected one of {sorted(TOWERS)}")
+        elif key in STRATEGY_LISTS:
+            if not isinstance(value, list) or not value or len(value) > 20 or any(isinstance(v, bool) or v not in STRATEGY_LISTS[key] for v in value):
+                raise ValueError(f"{path}.{key}: expected non-empty list of {sorted(STRATEGY_LISTS[key], key=str)}")
+        else:
+            raise ValueError(f"{path}.{key}: unknown field")
 
 
 def validate(config):
@@ -95,9 +114,10 @@ def validate(config):
     if not isinstance(teams, dict) or set(teams) - {"1", "2"}:
         raise ValueError("teams: expected team IDs 1 and/or 2")
     for team_id, values in teams.items():
-        if not isinstance(values, dict) or set(values) - (TEAM_FIELDS.keys() | {"base_stats"}):
+        if not isinstance(values, dict) or set(values) - (TEAM_FIELDS.keys() | {"base_stats", "strategy"}):
             raise ValueError(f"teams.{team_id}: unknown field")
-        _fields({k: v for k, v in values.items() if k != "base_stats"}, TEAM_FIELDS, f"teams.{team_id}")
+        _fields({k: v for k, v in values.items() if k not in ("base_stats", "strategy")}, TEAM_FIELDS, f"teams.{team_id}")
+        _strategy(values.get("strategy", {}), f"teams.{team_id}.strategy")
         _fields(values.get("base_stats", {}), STATS, f"teams.{team_id}.base_stats")
     for path in (shared.get("team", {}), *teams.values()):
         if path.get("workers", 0) > 10:

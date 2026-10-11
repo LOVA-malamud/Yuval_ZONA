@@ -10,6 +10,7 @@ var route := PackedVector2Array()
 var route_index: int = 1
 var formation_slot: int = 0
 var rally_remaining: float = 6.0
+var rally_configured: bool = false
 
 func step_gameplay(delta: float) -> void:
 	if not alive:
@@ -59,13 +60,24 @@ func step_gameplay(delta: float) -> void:
 	if route.is_empty():
 		return
 	if route_index == 1 and position.distance_to(route[1]) < 70.0 and rally_remaining > 0:
+		var strategy: Dictionary = game.simulation_config.get("teams", {}).get(str(team.team_id), {}).get("strategy", {})
+		if not rally_configured:
+			rally_configured = true
+			rally_remaining = float(strategy.get("mass_wait", rally_remaining))
 		rally_remaining -= delta
 		var nearby: int = 0
+		var waiting: Array = []
 		for friend in game.session.actors.values():
 			if friend.team == team and friend.category == &"army" and friend.position.distance_to(position) < 180:
 				nearby += 1
-		if nearby < 3:
+				waiting.append(friend)
+		if nearby < int(strategy.get("mass_size", 3)):
 			return
+		if strategy.has("mass_size"):
+			# Release the whole group together; otherwise each departure drops the count and units leave one by one.
+			for friend in waiting:
+				if friend.get("rally_remaining") != null:
+					friend.rally_remaining = 0.0
 	while route_index < route.size() - 1 and global_position.distance_to(route[route_index]) < 55.0:
 		route_index += 1
 	travel_toward(route[mini(route_index, route.size() - 1)], delta)

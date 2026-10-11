@@ -15,6 +15,7 @@ func _ready() -> void:
 	damage = definition.damage
 	attack_range = definition.attack_range
 	attack_cooldown = definition.attack_cooldown
+	pierce = definition.pierce
 
 func tower_id() -> StringName:
 	return definition.id if definition != null else &"guard"
@@ -56,7 +57,7 @@ func attack(target: CombatEntity) -> void:
 	# Snapshot protects iteration when a blast kills and unregisters an actor.
 	for candidate in game.session.actors.values().duplicate():
 		if valid_enemy(candidate) and candidate.global_position.distance_to(shot_end) <= definition.splash_radius + candidate.body_radius and game.navigation.clear_line(shot_end, candidate.global_position):
-			candidate.take_damage(damage, team.team_id, owner_commander_id, global_position)
+			candidate.take_damage(candidate.mitigated(damage, definition.pierce), team.team_id, owner_commander_id, global_position)
 	queue_redraw()
 
 func upgrade_cost() -> Vector2i:

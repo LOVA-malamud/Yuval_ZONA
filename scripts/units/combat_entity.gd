@@ -16,6 +16,9 @@ var max_health: float = 100.0
 var health: float = 100.0
 var damage: float = 10.0
 var structure_damage_multiplier: float = 1.0
+var armor: float = 0.0
+var pierce: bool = false
+const ARMOR_FLOOR := 0.25
 var move_speed: float = 100.0
 var attack_range: float = 30.0
 var attack_cooldown: float = 1.0
@@ -59,6 +62,8 @@ func configure(owner_team: GameTeam, manager, data: UnitStats = null) -> void:
 		max_health = data.max_health
 		damage = data.damage
 		structure_damage_multiplier = data.structure_damage_multiplier
+		armor = data.armor
+		pierce = data.pierce
 		move_speed = data.move_speed
 		attack_range = data.attack_range
 		attack_cooldown = data.attack_cooldown
@@ -166,7 +171,13 @@ func attack(target: CombatEntity) -> void:
 		game.launch_projectile(team.team_id, global_position, target.global_position, damage, structure_damage_multiplier, owner_commander_id)
 	else:
 		var dealt: float = damage * (structure_damage_multiplier if target.kind in [&"king", &"tower"] else 1.0)
-		target.take_damage(dealt, team.team_id, owner_commander_id, global_position)
+		target.take_damage(target.mitigated(dealt, pierce), team.team_id, owner_commander_id, global_position)
+
+
+func mitigated(amount: float, ignores_armor: bool) -> float:
+	if armor <= 0.0 or ignores_armor:
+		return amount
+	return maxf(amount * ARMOR_FLOOR, amount - armor)
 
 
 func take_damage(amount: float, attacker_team_id: int, source_commander_id: int = 0, _source_position: Vector2 = Vector2.INF) -> void:

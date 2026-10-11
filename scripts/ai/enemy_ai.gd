@@ -26,11 +26,15 @@ var observed_heavy_id: int = -1
 var reaction_remaining: float = -1.0
 var tower_id: StringName = &"guard"
 var roster: Array[StringName] = [&"tank", &"melee", &"ranged", &"melee", &"ranged"]
+## Optional per-team overrides from simulation_config.teams.<id>.strategy (lab experiments only).
+var strategy: Dictionary = {}
 
 func _ready() -> void:
 	rng.seed = game.strategy_seed * 97 + actor.commander_id * 13
+	var configured = game.simulation_config.get("teams", {}).get(str(team.team_id), {}).get("strategy", {})
+	strategy = configured if configured is Dictionary else {}
 	roster.clear()
-	for role in [&"tank", &"melee", &"ranged", &"melee", &"ranged"]:
+	for role in strategy.get("roster", [&"tank", &"melee", &"ranged", &"melee", &"ranged"]):
 		for id in game.unit_data:
 			if game.unit_data[id].tactical_role == role:
 				roster.append(id)
@@ -57,7 +61,9 @@ func step_gameplay(delta: float) -> void:
 	var reserve: int = game.balance.ally_money_reserve if personality == "ally" else 20
 	var wood_reserve: int = game.balance.ally_wood_reserve if personality == "ally" else 0
 	route_id = _deployment_lane()
-	if order == &"auto" and personality != "aggressive" and decision_count % 4 == 1 and team.worker_count >= 3 and team.wood >= game.balance.tower_wood + wood_reserve:
+	var tower_interval: int = int(strategy.get("tower_interval", 4))
+	var towers_allowed: bool = personality != "aggressive" if not strategy.has("tower_interval") else tower_interval > 0
+	if order == &"auto" and towers_allowed and decision_count % maxi(1, tower_interval) == 1 % maxi(1, tower_interval) and team.worker_count >= 3 and team.wood >= game.balance.tower_wood + wood_reserve:
 		build_goal = _choose_pad()
 		if build_goal != null:
 			tower_id = _choose_tower()
@@ -80,14 +86,14 @@ func step_gameplay(delta: float) -> void:
 		reserve += construction_budget
 	if team.money < reserve + 50:
 		return
-	if _has_gatherable_wood() and team.worker_count < (5 if personality == "economic" else 4) and (personality != "aggressive" or team.worker_count < 2):
+	if _has_gatherable_wood() and team.worker_count < int(strategy.get("workers", 5 if personality == "economic" else 4)) and (personality != "aggressive" or team.worker_count < int(strategy.get("aggressive_workers", 2))):
 		_recruit(&"worker")
 	elif build_goal != null and team.can_afford(_tower_money() + reserve, _tower_wood() + wood_reserve) and game.nearest_pad(actor) == build_goal:
 		game.build_tower(actor, build_goal, tower_id)
 		build_goal = null
 	else:
-		var group_size: int = 5 if personality == "aggressive" else 2
-		if personality == "aggressive" and team.money < reserve + 365 and not actor.valid_enemy(base_threat):
+		var group_size: int = int(strategy.get("group_size", 5 if personality == "aggressive" else 2))
+		if personality == "aggressive" and team.money < reserve + int(strategy.get("army_bank", 365)) and not actor.valid_enemy(base_threat):
 			group_size = 0
 		elif personality != "aggressive" and not actor.valid_enemy(base_threat) and team.combat_count >= 3:
 			for commander in game.commanders:
@@ -97,12 +103,13 @@ func step_gameplay(delta: float) -> void:
 			var id: StringName = roster[(decision_count + actor.commander_id + recruit) % roster.size()]
 			if team.money >= reserve + int(game.unit_data[id].money_cost):
 				_recruit(id)
-	if decision_count % 4 == 0:
+	var upgrade_interval: int = maxi(1, int(strategy.get("upgrade_interval", 4)))
+	if decision_count % upgrade_interval == 0:
 		# Grow the field economy before repeatedly fortifying an untouched King.
-		var order: Array = [7, 5, 6, 4, 7, 0, 1, 2, 3]
-		var definition: UpgradeDefinition = game.upgrades[order[(decision_count / 4 - 1) % order.size()]]
+		var order: Array = strategy.get("upgrade_order", [7, 5, 6, 4, 7, 0, 1, 2, 3])
+		var definition: UpgradeDefinition = game.upgrades[int(order[(decision_count / upgrade_interval - 1) % order.size()])]
 		var level: int = team.upgrade_level(definition.id)
-		var fortification_needed: bool = definition.category != "king" or level < 2
+		var fortification_needed: bool = definition.category != "king" or level < int(strategy.get("king_level_cap", 2))
 		if fortification_needed and team.wood >= definition.cost(level) + wood_reserve + game.balance.tower_wood:
 			game.session.execute(MatchCommand.new(MatchCommand.Action.UPGRADE, actor.commander_id, {"id": definition.id}))
 
@@ -309,7 +316,8 @@ func _choose_tower() -> StringName:
 	for unit in game.entities.get_children():
 		if unit is CombatEntity and actor.valid_enemy(unit) and unit.position.distance_to(actor.position) <= 340.0 and game.navigation.clear_line(actor.position, unit.position):
 			nearby_enemies += 1
-	var preferred: StringName = &"splash" if nearby_enemies >= 3 else &"long_range" if personality == "economic" else &"guard"
+	var fallback: StringName = &"long_range" if personality == "economic" else &"guard"
+	var preferred: StringName = &"splash" if nearby_enemies >= 3 else StringName(strategy.get("tower", fallback))
 	if game.tower_data.has(preferred):
 		var definition = game.tower_data[preferred]
 		if team.can_afford(definition.money_cost, definition.wood_cost):

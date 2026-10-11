@@ -73,7 +73,7 @@ func _effective_config() -> Dictionary:
 		result["teams"][str(team.team_id)] = {"money": team.money, "wood": team.wood, "workers": team.worker_count, "base_stats": team.base_stats.duplicate(true)}
 	for id in game.unit_data:
 		var unit = game.unit_data[id]
-		result["units"][String(id)] = {"money_cost": unit.money_cost, "max_health": unit.max_health, "damage": unit.damage, "move_speed": unit.move_speed, "attack_range": unit.attack_range, "attack_cooldown": unit.attack_cooldown, "detection_range": unit.detection_range, "body_radius": unit.body_radius, "structure_damage_multiplier": unit.structure_damage_multiplier}
+		result["units"][String(id)] = {"money_cost": unit.money_cost, "max_health": unit.max_health, "damage": unit.damage, "move_speed": unit.move_speed, "attack_range": unit.attack_range, "attack_cooldown": unit.attack_cooldown, "detection_range": unit.detection_range, "body_radius": unit.body_radius, "structure_damage_multiplier": unit.structure_damage_multiplier, "armor": unit.armor}
 	for upgrade in game.upgrades:
 		result["upgrades"][String(upgrade.id)] = {"base_cost": upgrade.base_cost, "cost_growth": upgrade.cost_growth, "amount": upgrade.amount, "maximum_level": upgrade.maximum_level}
 	for field in ["tower_money", "tower_wood", "tower_health", "tower_damage", "tower_range", "tower_cooldown", "tower_rebuild_delay", "build_reach", "ally_money_reserve", "ally_wood_reserve", "aggressive_decision_seconds", "economic_decision_seconds", "commander_health", "commander_strike_windup", "commander_respawn", "base_heal_cooldown"]:

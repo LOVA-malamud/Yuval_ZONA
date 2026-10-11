@@ -11,3 +11,4 @@ damage = 36.0
 attack_cooldown = 2.4
 attack_range = 380.0
 minimum_range = 100.0
+pierce = true

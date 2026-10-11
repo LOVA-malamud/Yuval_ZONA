@@ -15,3 +15,7 @@ extends Resource
 @export var body_radius: float = 13.0
 
 @export var structure_damage_multiplier: float = 1.0
+## Flat damage removed from each non-piercing hit (never below ARMOR_FLOOR of the hit).
+@export var armor: float = 0.0
+## Piercing attacks ignore the target's armor.
+@export var pierce: bool = false
