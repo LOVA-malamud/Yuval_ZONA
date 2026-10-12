@@ -4,7 +4,8 @@ var grass_mesh: ArrayMesh
 var pebbles: PackedVector2Array
 
 func _ready() -> void:
-	var bounds: Vector2 = get_parent().map_definition.bounds
+	var map_definition: MapDefinition = get_parent().map_definition
+	var bounds: Vector2 = map_definition.bounds
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1073
 	var vertices := PackedVector3Array()
@@ -21,6 +22,15 @@ func _ready() -> void:
 	grass_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh_arrays)
 	for i in range(320):
 		pebbles.append(Vector2(rng.randf_range(35,bounds.x - 35),rng.randf_range(35,bounds.y - 35)))
+	var economy_positions := PackedVector2Array()
+	for entry in map_definition.tree_placements():
+		economy_positions.append(entry.position)
+	var forest := Node2D.new()
+	forest.set_script(preload("res://scripts/visuals/backdrop_forest.gd"))
+	forest.map_definition = map_definition
+	forest.economy_positions = economy_positions
+	forest.z_index = 1
+	add_child(forest)
 	var overlay := Node2D.new()
 	overlay.set_script(preload("res://scripts/visuals/ambient_overlay.gd"))
 	overlay.bounds = bounds

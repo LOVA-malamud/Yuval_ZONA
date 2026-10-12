@@ -23,6 +23,7 @@ REGRESSIONS = (
     "polish_regression", "game_lab", "step_parity", "definition_regression", "difficulty_regression",
     "combat_rework_regression", "economy_towers_regression", "deployment_policy_regression",
     "hud_rework_regression", "economy_pacing_lab", "pixel_animation_regression", "facing_scouting_regression",
+    "backdrop_forest_regression",
 )
 
 
