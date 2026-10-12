@@ -88,7 +88,7 @@ def ability_stats(matches: list, name: str) -> dict | None:
     def med(values):
         values = sorted(values)
         return values[len(values) // 2] if values else None
-    uses = {a: med([r.get("ability_uses", {}).get(a, 0) for r in runs]) for a in ("dash", "guard", "heavy")}
+    uses = {a: med([r.get("ability_uses", {}).get(a, 0) for r in runs]) for a in ("dash", "guard", "heavy", "feint")}
     heavy = sum(r.get("ability_uses", {}).get("heavy", 0) for r in runs)
     hits = sum(r.get("heavy_hits", 0) for r in runs)
     unguarded = sum(r.get("heavy_unguarded", r.get("heavy_hits", 0)) for r in runs)
@@ -178,12 +178,12 @@ def iteration(args, config_path: Path) -> int:
         entry["scenarios"][name] = {"config": fingerprint, "source_digest": report["source_digest"], "win_rate": summary["win_rate"],
                                     "median_duration": summary["median_duration"], "timeouts": summary["timeouts"],
                                     "stalls": summary["stalls"], "misses": misses, "abilities": abilities}
-    print(f"\n{'abilities (per match, median)':34} {'dash':>5} {'guard':>5} {'heavy':>5} {'hit%':>5} {'unguard%':>8} {'stuns':>5} {'enc s':>5} {'esc%':>5} {'heal int':>8}")
+    print(f"\n{'abilities (per match, median)':34} {'dash':>5} {'guard':>5} {'heavy':>5} {'feint':>5} {'hit%':>5} {'unguard%':>8} {'stuns':>5} {'enc s':>5} {'esc%':>5} {'heal int':>8}")
     for name, data in entry["scenarios"].items():
         a = data["abilities"]
         if a:
             u = a["uses_per_match"]
-            print(f"{name[:34]:34} {fmt(u['dash']):>5} {fmt(u['guard']):>5} {fmt(u['heavy']):>5} {fmt(a['heavy_hit_rate'], 100):>5} "
+            print(f"{name[:34]:34} {fmt(u['dash']):>5} {fmt(u['guard']):>5} {fmt(u['heavy']):>5} {fmt(u['feint']):>5} {fmt(a['heavy_hit_rate'], 100):>5} "
                   f"{fmt(a['heavy_unguarded_rate'], 100):>8} {fmt(a['stuns_per_match']):>5} {fmt(a['encounter_seconds'], 1, 1):>5} "
                   f"{fmt(a['escape_rate'], 100):>5} {fmt(a['healing_interruptions']):>8}")
     with history_path.open("a") as handle:

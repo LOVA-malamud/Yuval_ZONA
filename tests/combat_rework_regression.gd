@@ -91,6 +91,40 @@ func _run() -> void:
 	actor.step_gameplay(0.61)
 	check(foe.stun_remaining == 0.0, "Successful guard prevents heavy stun")
 	actor.cancel_action()
+	foe.cancel_action()
+	actor.ability_cooldowns[&"feint"] = 0.0
+	foe.health = foe.max_health
+	foe.stun_remaining = 0.0
+	foe.position = actor.position + Vector2.RIGHT * 65.0
+	actor.facing = Vector2.RIGHT
+	check(actor.activate_ability(&"feint"), "Feint activation accepted")
+	actor.step_gameplay(0.3)
+	check(actor.action_state == &"feint", "Feint windup matches heavy's full duration and has not resolved early")
+	actor.step_gameplay(0.31)
+	check(foe.health == foe.max_health and foe.stun_remaining == 0.0, "Feint deals no damage and applies no stun")
+	check(actor.action_state == &"recovery" and is_equal_approx(actor.action_remaining, game.balance.feint_recovery), "Feint resolves into its own short recovery")
+	actor.step_gameplay(0.16)
+	check(actor.action_state == &"ready" and not actor.activate_ability(&"feint"), "Feint's own cooldown blocks reactivation after recovery ends")
+	foe.ability_cooldowns[&"guard"] = 0.0
+	foe.facing = Vector2.LEFT
+	foe.health = foe.max_health
+	check(foe.activate_ability(&"guard"), "Guard activation accepted for cost check")
+	check(is_equal_approx(foe.ability_cooldowns[&"guard"], game.balance.guard_cooldown), "Guard charges its base cooldown on activation")
+	foe.take_damage(20.0, game.teams[0].team_id, 0, foe.position + Vector2.LEFT * 30.0)
+	check(is_equal_approx(foe.ability_cooldowns[&"guard"], game.balance.guard_cooldown + game.balance.guard_hit_cooldown_penalty), "Successful guard block adds an extra cooldown penalty")
+	foe.cancel_action()
+	check(not foe.activate_ability(&"guard"), "Guard stays on cooldown after the block penalty")
+	actor.cancel_action()
+	actor.ability_cooldowns[&"heavy"] = 0.0
+	foe.stun_immunity = 0.0
+	foe.health = foe.max_health
+	foe.position = actor.position + Vector2.RIGHT * 65.0
+	actor.facing = Vector2.RIGHT
+	check(actor.activate_ability(&"heavy"), "Heavy activation accepted against a guard-exhausted foe")
+	actor.step_gameplay(0.61)
+	check(is_equal_approx(foe.health, foe.max_health - game.balance.heavy_damage) and foe.stun_remaining > 0.0, "A guard left on cooldown by the block penalty cannot stop a follow-up heavy strike")
+	actor.cancel_action()
+	foe.cancel_action()
 	actor.ability_cooldowns[&"dash"] = 0.0
 	var obstacle: Rect2 = game.navigation.obstacles[0]
 	actor.position = Vector2(obstacle.position.x - actor.body_radius - 5.0, obstacle.get_center().y)

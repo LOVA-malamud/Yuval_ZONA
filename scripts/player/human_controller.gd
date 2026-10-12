@@ -36,7 +36,7 @@ func drive(actor, delta: float) -> void:
 	if not scripted and touch_index >= 0:
 		direction = touch_direction
 	if not scripted:
-		for key in ["ability_dash", "ability_guard", "ability_heavy"]:
+		for key in ["ability_dash", "ability_guard", "ability_heavy", "ability_feint"]:
 			if InputMap.has_action(key) and Input.is_action_just_pressed(key):
 				request_ability(StringName(key.trim_prefix("ability_")))
 	# Resolve this tick's movement facing before activating; movement is applied once below.

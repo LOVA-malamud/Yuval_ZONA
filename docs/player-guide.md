@@ -32,6 +32,6 @@ Focus loss pauses play and clears held input. Escape or system Back closes the c
 
 ## Combat and recovery
 
-Use **Shift** to dash, **F** to guard and **C** for a heavy strike, along your last movement facing. Guard reduces frontal damage; a heavy strike commits your facing during its wind-up and briefly stuns an unguarded commander or troop. Dash has no invulnerability. Movement, damage and offensive actions interrupt base recovery: use Interact within 180 units of your King to channel 60 HP/second, with a 30-second cooldown after a valid start.
+Use **Shift** to dash, **F** to guard, **C** for a heavy strike and **V** to feint, along your last movement facing. Guard reduces frontal damage but now costs extra cooldown whenever it actually blocks a hit, on top of its normal activation cost — holding it against every strike is no longer free. A heavy strike commits your facing during its wind-up and briefly stuns an unguarded commander or troop. Feint plays the identical wind-up as a heavy strike with no damage or stun, so an opponent can't tell them apart until it resolves — use it to bait a wasted guard or dash. Dash has no invulnerability. Movement, damage and offensive actions interrupt base recovery: use Interact within 180 units of your King to channel 60 HP/second, with a 30-second cooldown after a valid start.
 
 Build Guard, Splash or Long-range towers at pads. Splash hits nearby enemies; Long-range towers have a close-range dead zone. Secure exposed timber as home stock runs out.

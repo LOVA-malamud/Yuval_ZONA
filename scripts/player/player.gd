@@ -20,7 +20,7 @@ var action_remaining: float = 0.0
 var facing := Vector2.RIGHT
 var scouting: bool = false
 var scouting_target := Vector2.ZERO
-var ability_cooldowns: Dictionary = {&"dash": 0.0, &"guard": 0.0, &"heavy": 0.0}
+var ability_cooldowns: Dictionary = {&"dash": 0.0, &"guard": 0.0, &"heavy": 0.0, &"feint": 0.0}
 
 func _tuning(key: String, fallback: float) -> float:
 	for property in game.balance.get_property_list():
@@ -54,6 +54,11 @@ func activate_ability(ability_id: StringName) -> bool:
 		&"heavy":
 			action_remaining = _tuning("heavy_windup", 0.6)
 			ability_cooldowns[ability_id] = _tuning("heavy_cooldown", 7.0)
+		&"feint":
+			# Shares heavy's literal windup duration so it is indistinguishable
+			# from a real heavy strike until it resolves into recovery.
+			action_remaining = _tuning("heavy_windup", 0.6)
+			ability_cooldowns[ability_id] = _tuning("feint_cooldown", 3.0)
 	game.session.publish({"type": "ability", "entity_id": match_id, "commander_id": commander_id, "ability_id": String(ability_id), "direction": [facing.x, facing.y]})
 	return true
 
@@ -93,6 +98,7 @@ func take_damage(amount: float, attacker_team_id: int, source_commander_id: int 
 			if character_visual != null:
 				character_visual.note_block()
 			amount *= 1.0 - _tuning("guard_damage_reduction", 0.7)
+			ability_cooldowns[&"guard"] = float(ability_cooldowns.get(&"guard", 0.0)) + _tuning("guard_hit_cooldown_penalty", 2.5)
 	super.take_damage(amount, attacker_team_id, source_commander_id, source_position)
 
 func _step_action(delta: float) -> void:
@@ -118,11 +124,19 @@ func _step_action(delta: float) -> void:
 			action_state = &"ready"
 		else:
 			var was_heavy: bool = action_state == &"heavy"
+			var was_feint: bool = action_state == &"feint"
 			if was_heavy:
 				note_visual_attack(facing, true)
 				_resolve_heavy()
+			elif was_feint:
+				game.session.publish({"type": "feint_resolve", "entity_id": match_id, "commander_id": commander_id})
 			action_state = &"recovery"
-			action_remaining = _tuning("heavy_recovery", 0.45) if was_heavy else _tuning("ability_recovery", 0.2)
+			if was_heavy:
+				action_remaining = _tuning("heavy_recovery", 0.45)
+			elif was_feint:
+				action_remaining = _tuning("feint_recovery", 0.15)
+			else:
+				action_remaining = _tuning("ability_recovery", 0.2)
 
 
 func _ready() -> void:
@@ -231,9 +245,9 @@ func _resolve_strike() -> void:
 
 func _draw() -> void:
 	super._draw()
-	if action_state in [&"heavy", &"guard"]:
-		var half_angle: float = deg_to_rad(25.0 if action_state == &"heavy" else 60.0)
-		draw_arc(Vector2.ZERO, attack_range + body_radius, facing.angle() - half_angle, facing.angle() + half_angle, 20, Color("ffae55") if action_state == &"heavy" else Color("90dfff"), 4.0, true)
+	if action_state in [&"heavy", &"feint", &"guard"]:
+		var half_angle: float = deg_to_rad(60.0 if action_state == &"guard" else 25.0)
+		draw_arc(Vector2.ZERO, attack_range + body_radius, facing.angle() - half_angle, facing.angle() + half_angle, 20, Color("90dfff") if action_state == &"guard" else Color("ffae55"), 4.0, true)
 	if healing:
 		draw_arc(Vector2.ZERO, body_radius + 12.0, -PI / 2.0, -PI / 2.0 + TAU * health / max_health, 24, Color("99efb0"), 3.0, true)
 	if human_controlled and controller != null and valid_enemy(controller.target):
@@ -289,7 +303,7 @@ func apply_input(values: Dictionary) -> void:
 	var original_speed: float = move_speed
 	if action_state == &"guard":
 		move_speed *= _tuning("guard_move_multiplier", 0.35)
-	elif action_state == &"heavy":
+	elif action_state in [&"heavy", &"feint"]:
 		move_speed *= _tuning("heavy_move_multiplier", 0.25)
 	if values.has("goal"):
 		var normal_speed := move_speed

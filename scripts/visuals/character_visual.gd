@@ -118,7 +118,7 @@ func step(actor, delta: float, sample_pose: bool = true) -> bool:
 	if not sample_pose:
 		# Preserve time/motion/facing cheaply while offscreen; resolve the current
 		# pose on re-entry rather than rebuilding invisible local draw commands.
-		if ability in [&"heavy", &"guard", &"dash"]:
+		if ability in [&"heavy", &"feint", &"guard", &"dash"]:
 			_face(actor.facing,true)
 		elif attack_remaining > 0.0:
 			_face(attack_heading,true)
@@ -131,10 +131,10 @@ func step(actor, delta: float, sample_pose: bool = true) -> bool:
 		attack_remaining = 0.0
 		moving = false
 		leg_frame = 0
-	elif ability in [&"heavy", &"guard", &"dash"]:
+	elif ability in [&"heavy", &"feint", &"guard", &"dash"]:
 		_face(actor.facing, true)
-		action = &"guard_hit" if ability == &"guard" and block_remaining > 0.0 else ability
-		if ability == &"heavy":
+		action = &"guard_hit" if ability == &"guard" and block_remaining > 0.0 else (&"heavy" if ability == &"feint" else ability)
+		if ability in [&"heavy", &"feint"]:
 			frame = _progress_frame(1.0 - actor.action_remaining / actor._tuning("heavy_windup", 0.6))
 		elif action == &"guard_hit":
 			frame = _progress_frame(1.0 - block_remaining / 0.14)
