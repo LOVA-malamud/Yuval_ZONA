@@ -27,7 +27,7 @@ class MatchScenarioTests(unittest.TestCase):
                 validate(config)
 
     def test_rework_fields(self):
-        validate({"shared": {"balance": {"heavy_stun": 0.5, "guard_damage_reduction": 0.7},
+        validate({"shared": {"balance": {"heavy_stun": 0.5, "guard_damage_reduction": 0.7, "feint_cooldown": 2.0, "guard_hit_cooldown_penalty": 1.5},
                               "deployment": {"window_size": 30, "tolerance": 0},
                               "towers": {"long_range": {"minimum_range": 100, "splash_radius": 0, "wood_cost": 100}},
                               "groves": [{"center": [450, 900], "count": 8, "wood": 100, "zone": "home"}]}})

@@ -33,7 +33,8 @@
     "min_uses_per_match": {
       "dash": 1,
       "guard": 1,
-      "heavy": 1
+      "heavy": 1,
+      "feint": 1
     }
   }
 }

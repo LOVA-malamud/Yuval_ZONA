@@ -264,7 +264,7 @@ func _use_combat_ability(body) -> void:
 		if id == &"heavy":
 			still_valid = still_valid and body.edge_distance(target) <= body.attack_range and absf(heading.angle_to(body.position.direction_to(target.position))) <= deg_to_rad(25.0)
 		elif id == &"guard":
-			still_valid = still_valid and target.get("action_state") == &"heavy" and absf(heading.angle_to(body.position.direction_to(target.position))) <= deg_to_rad(60.0)
+			still_valid = still_valid and target.get("action_state") in [&"heavy", &"feint"] and absf(heading.angle_to(body.position.direction_to(target.position))) <= deg_to_rad(60.0)
 		if not still_valid:
 			pending_ability.clear()
 		elif game.session.ticks > int(pending_ability.tick) and absf(body.facing.angle_to(heading)) < 0.01:
@@ -272,8 +272,10 @@ func _use_combat_ability(body) -> void:
 			game.session.execute(MatchCommand.new(MatchCommand.Action.ABILITY, actor.commander_id, {"ability_id": id}))
 		return
 	var direction: Vector2 = body.position.direction_to(target.position)
-	var visible_heavy: bool = target.category == &"commander" and target.get("action_state") == &"heavy" and body.edge_distance(target) < 140.0 and game.navigation.clear_line(body.position, target.position)
-	if visible_heavy:
+	# AI reacts to the same telegraph a human sees; it cannot tell a feint from
+	# a real heavy strike during the windup (symmetric information).
+	var visible_telegraph: bool = target.category == &"commander" and target.get("action_state") in [&"heavy", &"feint"] and body.edge_distance(target) < 140.0 and game.navigation.clear_line(body.position, target.position)
+	if visible_telegraph:
 		if observed_heavy_id != target.match_id:
 			observed_heavy_id = target.match_id
 			reaction_remaining = rng.randf_range(0.15, 0.30)
@@ -297,10 +299,18 @@ func _use_combat_ability(body) -> void:
 	ability_timer = 0.35 if game.rules.difficulty == &"hard" else 0.65
 	if game.rules.difficulty == &"easy":
 		ability_timer = 1.1
-	if body.edge_distance(target) <= body.attack_range and rng.randf() < 0.40 and float(body.ability_cooldowns.get(&"heavy", 0.0)) <= 0.0:
-		_request_ability(&"heavy", direction)
-	elif body.edge_distance(target) > body.attack_range + 110.0 and rng.randf() < 0.25 and float(body.ability_cooldowns.get(&"dash", 0.0)) <= 0.0:
+	var gap: float = body.edge_distance(target)
+	if gap <= body.attack_range:
+		if rng.randf() < 0.40 and float(body.ability_cooldowns.get(&"heavy", 0.0)) <= 0.0:
+			_request_ability(&"heavy", direction)
+		elif rng.randf() < 0.15 and float(body.ability_cooldowns.get(&"feint", 0.0)) <= 0.0:
+			_request_ability(&"feint", direction)
+	elif gap > body.attack_range + 110.0 and rng.randf() < 0.25 and float(body.ability_cooldowns.get(&"dash", 0.0)) <= 0.0:
 		_request_ability(&"dash", direction)
+	elif rng.randf() < 0.30 and float(body.ability_cooldowns.get(&"feint", 0.0)) <= 0.0:
+		# Just outside striking range but not far enough to warrant a dash:
+		# probe with a feint before closing distance.
+		_request_ability(&"feint", direction)
 
 func _request_ability(id: StringName, direction: Vector2) -> void:
 	pending_ability = {"ability_id": id, "direction": direction.normalized(), "target_id": target.match_id, "tick": game.session.ticks}

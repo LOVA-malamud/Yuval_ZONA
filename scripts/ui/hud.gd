@@ -309,11 +309,11 @@ func _build_mobile_controls() -> void:
 	var actions := HBoxContainer.new()
 	controls.add_child(actions)
 	actions.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_RIGHT)
-	actions.offset_left = -282
+	actions.offset_left = -370
 	actions.offset_right = -18
 	actions.offset_top = -100
 	actions.offset_bottom = -20
-	for id in [&"dash", &"guard", &"heavy"]:
+	for id in [&"dash", &"guard", &"heavy", &"feint"]:
 		var button = preload("res://scripts/ui/ability_touch_button.gd").new()
 		button.ability_id = id
 		button.controller = game.player.controller
@@ -582,7 +582,7 @@ func _refresh() -> void:
 	for id in ability_buttons:
 		var button = ability_buttons[id]
 		var remaining: float = game.player.ability_cooldowns[id]
-		button.text = tr("ABILITY_" + String(id).to_upper()) + ("\n%s" % ceili(remaining) if remaining > 0.0 else "\n" + ({&"dash": "Shift", &"guard": "F", &"heavy": "C"}[id] if not compact_mode else tr("ABILITY_READY")))
+		button.text = tr("ABILITY_" + String(id).to_upper()) + ("\n%s" % ceili(remaining) if remaining > 0.0 else "\n" + ({&"dash": "Shift", &"guard": "F", &"heavy": "C", &"feint": "V"}[id] if not compact_mode else tr("ABILITY_READY")))
 		button.disabled = not game.player.alive or get_tree().paused or game.match_finished or remaining > 0.0 or game.player.stun_remaining > 0.0 or game.player.action_state != &"ready"
 	if healing_label != null:
 		healing_label.text = tr("HEAL_CHANNEL") % [game.player.health, game.player.max_health] if game.player.healing else (tr("HEAL_COOLDOWN") % ceili(game.player.heal_cooldown) if game.player.heal_cooldown > 0.0 else tr("HEAL_READY"))

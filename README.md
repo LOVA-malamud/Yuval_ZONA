@@ -7,7 +7,7 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 - Four independent commanders: human + ally AI versus two enemy AIs
 - Three lanes with terrain-aware A* navigation
 - Shared Gold and finite Wood economy, exposed late-game gathering, and commander respawns
-- Gradual, interruptible base recovery and shared dash, guard, and heavy-strike abilities
+- Gradual, interruptible base recovery and shared dash, guard, heavy-strike, and feint abilities
 - Melee, ranged, and tank roles with distinct battlefield behavior
 - Nine build pads with three-level Guard, Splash, and Long-range Towers
 - King and Economy upgrade tracks
@@ -23,7 +23,7 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 | --- | --- |
 | `WASD` | Move the human commander |
 | Hold `Space` | Attack a nearby enemy |
-| `Shift` / `F` / `C` | Dash / guard / heavy strike, along your last movement facing |
+| `Shift` / `F` / `C` / `V` | Dash / guard / heavy strike / feint, along your last movement facing |
 | `E` near a King or build pad | Open the relevant interaction |
 | Mouse wheel | Zoom the battlefield camera |
 | `1` / `2` / `3` or route selector | North / Center / South for new recruits |
@@ -37,6 +37,8 @@ CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams figh
 On a touchscreen, drag from the left side to move. Mobile auto-attack works independently of movement. Release an ability button inside it to activate along your last movement facing; release outside to cancel. Hold and drag the minimap to scout distant fights; release to return to your commander. Use Interact near your King to channel recovery or near a build pad to select a tower. Army, King, and Economy controls open in collapsible drawers. Landscape safe areas and a portrait rotate prompt are supported; thumb reach and dense-combat readability still require phone playtests.
 
 Heavy strike commits your facing through a visible 0.6-second wind-up. It deals 48 damage and briefly stuns commanders and troops when their guard fails. Front-facing guard and lateral dash provide counterplay; missing leaves you vulnerable during recovery.
+
+Feint plays the identical 0.6-second wind-up as heavy strike — same telegraph, same slowed movement, same facing lock — but resolves into a short recovery with no damage or stun. It exists to bait a guard or dash out of an opponent who can't tell it apart from a real heavy until it resolves; AI commanders see and react to the same telegraph, with no ability to detect a feint early. Guard now costs extra cooldown whenever it actually blocks a hit, on top of its normal activation cost, so holding guard against every strike is no longer free — a commander who turtles indefinitely will eventually find guard on cooldown when a real heavy lands.
 
 ## Character animation preview
 

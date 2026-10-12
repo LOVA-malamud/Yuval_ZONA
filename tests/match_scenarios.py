@@ -14,6 +14,7 @@ UPGRADES = {"king_health", "king_damage", "king_attack_speed", "king_range", "wo
 UPGRADE_FIELDS = {"base_cost", "cost_growth", "amount", "maximum_level"}
 BALANCE_FIELDS = {"tower_money", "tower_wood", "tower_health", "tower_damage", "tower_range", "tower_cooldown", "tower_rebuild_delay", "build_reach", "ally_money_reserve", "ally_wood_reserve", "aggressive_decision_seconds", "economic_decision_seconds", "commander_health", "commander_strike_windup", "commander_respawn", "base_heal_cooldown"}
 BALANCE_FIELDS |= {"base_heal_rate", "base_heal_radius", "dash_distance", "dash_duration", "dash_cooldown", "guard_duration", "guard_cooldown", "guard_cone_degrees", "guard_damage_reduction", "guard_move_multiplier", "heavy_windup", "heavy_cooldown", "heavy_cone_degrees", "heavy_damage", "heavy_stun", "heavy_recovery", "heavy_move_multiplier", "ability_recovery"}
+BALANCE_FIELDS |= {"feint_cooldown", "feint_recovery", "guard_hit_cooldown_penalty"}
 STRATEGY_INTS = {"workers", "aggressive_workers", "group_size", "army_bank", "tower_interval", "upgrade_interval", "king_level_cap", "mass_size", "mass_wait"}
 STRATEGY_LISTS = {"roster": UNITS, "upgrade_order": set(range(8))}
 TOWERS = {"guard", "splash", "long_range"}

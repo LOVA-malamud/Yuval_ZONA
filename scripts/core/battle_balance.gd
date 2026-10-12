@@ -38,3 +38,6 @@ extends Resource
 @export var heavy_recovery: float = 0.45
 @export var heavy_move_multiplier: float = 0.25
 @export var ability_recovery: float = 0.2
+@export var feint_cooldown: float = 3.0
+@export var feint_recovery: float = 0.15
+@export var guard_hit_cooldown_penalty: float = 2.5
