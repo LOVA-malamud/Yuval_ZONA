@@ -74,6 +74,8 @@ func _select_target(screen_position: Vector2) -> void:
 			nearest = distance
 			best = candidate
 	focus_target = best
+	if best != null:
+		actor.game.spawn_effect(best.global_position, Color("ffd36b"), "ping")
 
 
 func _input(event: InputEvent) -> void:

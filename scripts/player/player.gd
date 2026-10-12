@@ -148,6 +148,23 @@ func _ready() -> void:
 	$Camera2D.offset = Vector2.ZERO
 	$Camera2D.zoom = Vector2.ONE * 0.9
 
+# Presentation-only camera shake; uses its own RNG so the simulation is untouched.
+var shake_trauma: float = 0.0
+var shake_rng := RandomNumberGenerator.new()
+
+func shake(amount: float) -> void:
+	if not human_controlled or not game.presentation_enabled:
+		return
+	shake_trauma = minf(1.0, shake_trauma + amount)
+
+func _process(delta: float) -> void:
+	if not human_controlled or not game.presentation_enabled:
+		return
+	var camera: Camera2D = $Camera2D
+	shake_trauma = maxf(0.0, shake_trauma - delta * 1.6)
+	var power := shake_trauma * shake_trauma * 22.0
+	camera.offset = Vector2(shake_rng.randf_range(-1.0, 1.0), shake_rng.randf_range(-1.0, 1.0)) * power if power > 0.05 else Vector2.ZERO
+
 func step_gameplay(delta: float) -> void:
 	for ability_id in ability_cooldowns:
 		ability_cooldowns[ability_id] = maxf(0.0, float(ability_cooldowns[ability_id]) - delta)

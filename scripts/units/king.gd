@@ -55,6 +55,8 @@ func take_damage(amount: float, attacker_team_id: int, source_commander_id: int 
 	recent_damage += amount
 	damage_window = 6.0
 	super.take_damage(amount, attacker_team_id, source_commander_id, source_position)
+	if team == game.player.team:
+		game.shake_camera(clampf(amount / max_health * 6.0, 0.05, 0.35))
 	if alive and (recent_damage >= max_health * 0.07 or health < max_health * 0.35):
 		danger_remaining = 6.0
 		if game.coordination != null:
@@ -66,6 +68,7 @@ func take_damage(amount: float, attacker_team_id: int, source_commander_id: int 
 				game.notify("KING_DANGER")
 
 func die() -> void:
+	game.shake_camera(1.0)
 	game.play_sound(&"king_death")
 	game.spawn_effect(position, team.color, "crownfall")
 	super.die()

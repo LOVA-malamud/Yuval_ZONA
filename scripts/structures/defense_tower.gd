@@ -95,4 +95,6 @@ func _draw() -> void:
 func die() -> void:
 	game.play_sound(&"tower_destroy", global_position)
 	game.spawn_effect(global_position, team.color, "rubble")
+	game.spawn_effect(global_position, Color("ff9a3c"), "embers")
+	game.shake_camera(0.4)
 	super.die()

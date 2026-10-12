@@ -32,6 +32,8 @@ var previous_wallet := Vector2i.ZERO
 var resource_tween: Tween
 var king_bars: Array[ProgressBar] = []
 var result_shade: ColorRect
+var danger_vignette: Control
+var danger_pulse: float = 0.0
 var settings_panel: Control
 var settings_button: Button
 var notice_key: String = ""
@@ -465,7 +467,21 @@ func _build_or_upgrade() -> void:
 	_queue_purchase(MatchCommand.Action.UPGRADE_TOWER if active_pad.occupied() else MatchCommand.Action.BUILD, {"pad": active_pad}, structure_button)
 
 
+func _build_danger_vignette() -> void:
+	danger_vignette = Control.new()
+	danger_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	controls.add_child(danger_vignette)
+	danger_vignette.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	danger_vignette.draw.connect(func():
+		var size := danger_vignette.size
+		for i in range(6):
+			var inset := float(i) * 14.0
+			danger_vignette.draw_rect(Rect2(Vector2.ONE * inset, size - Vector2.ONE * inset * 2.0), Color(0.85, 0.1, 0.1, 0.5 * danger_pulse * (1.0 - i / 6.0)), false, 14.0))
+	danger_vignette.hide()
+
+
 func _build_overlay() -> void:
+	_build_danger_vignette()
 	result_overlay = CenterContainer.new()
 	controls.add_child(result_overlay)
 	result_overlay.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -527,6 +543,11 @@ func _process(delta: float) -> void:
 		touch_stick.visible = mobile_interact_button.visible
 	refresh_time -= delta
 	notice_time -= delta
+	if danger_vignette != null:
+		danger_pulse = maxf(0.0, danger_pulse - delta * 0.5)
+		danger_vignette.visible = danger_pulse > 0.0
+		if danger_vignette.visible:
+			danger_vignette.queue_redraw()
 	resource_flash = maxf(0.0, resource_flash - delta)
 	if resource_flash <= 0:
 		resource_hint.text = "HUD_RESOURCES"
@@ -913,6 +934,7 @@ func _match_event(event: Dictionary) -> void:
 	if event.type == "alert" and event.team == team.team_id:
 		var key := "ALERT_" + str(event.category).to_upper()
 		if event.category == "king_danger":
+			danger_pulse = 1.0
 			notify("KING_DANGER")
 		elif notice_priority < 3:
 			notify(key, [RouteMap.LANE_NAMES[event.lane]])

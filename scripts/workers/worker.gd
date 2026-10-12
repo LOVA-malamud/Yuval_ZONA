@@ -76,6 +76,7 @@ func step_gameplay(delta: float) -> void:
 				deposit_flash = 0.6
 				game.spawn_effect(position, Color("dfbe73"), "deposit")
 				if team == game.player.team:
+					game.spawn_number(position, Color("dfbe73"), "+%d" % carried)
 					game.play_sound(&"deposit", global_position)
 				carried = 0
 				gather_progress = 0.0

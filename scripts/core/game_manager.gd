@@ -131,6 +131,8 @@ func _ready() -> void:
 		$Battlefield.free()
 		hud.free()
 		hud = null
+	if presentation_enabled and DisplayServer.get_name() != "headless":
+		AudioFeedback.start_music()
 	if DisplayServer.get_name() != "headless":
 		DisplayServer.window_set_title("Crownfront")
 	get_tree().paused = false
@@ -187,6 +189,7 @@ func _physics_process(_delta: float) -> void:
 	session.step()
 
 func _exit_tree() -> void:
+	AudioFeedback.stop_music()
 	if session != null:
 		session.stop()
 
@@ -417,6 +420,7 @@ func _on_king_died(entity: CombatEntity) -> void:
 	var winner: CombatEntity = enemy_king(entity.team.team_id)
 	var winner_id: int = winner.team.team_id if winner != null else 0
 	winning_team_id = winner_id
+	AudioFeedback.stop_music()
 	play_sound(&"victory" if winner_id == player.team.team_id else &"defeat")
 	get_tree().paused = true
 	if tutorial != null:
@@ -508,17 +512,30 @@ func _upgrade_tower(commander, pad) -> bool:
 	return true
 
 
-func spawn_effect(point: Vector2, tint: Color, type: String) -> void:
+func shake_camera(amount: float) -> void:
+	if presentation_enabled and player != null and player.has_method("shake"):
+		player.shake(amount)
+
+
+func spawn_number(point: Vector2, tint: Color, text: String) -> void:
+	spawn_effect(point, tint, "number", text)
+
+
+func spawn_effect(point: Vector2, tint: Color, type: String, text: String = "") -> void:
 	if not presentation_enabled:
 		return
 	# A fixed visual budget protects burst recruitment and simultaneous battles.
 	# Crown destruction must remain visible even when the ordinary budget is full.
 	if effect_count >= MAX_EFFECTS and type != "crownfall":
 		return
+	# Ambient particles yield to gameplay-critical effects.
+	if type in ["dust", "spark"] and effect_count >= MAX_EFFECTS / 2:
+		return
 	var effect = EFFECT_SCRIPT.new()
 	effect.position = point
 	effect.tint = tint
 	effect.effect = type
+	effect.text = text
 	effect_count += 1
 	effect.tree_exited.connect(func(): effect_count -= 1)
 	add_child(effect)

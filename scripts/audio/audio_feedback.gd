@@ -36,6 +36,13 @@ var synthesis_microseconds: int = 0
 var played_count: int = 0
 var suppressed_count: int = 0
 var playback_generation: int = 0
+# Procedural music: a calm pad loop plus a combat layer that swells with fighting.
+const MUSIC_RATE: int = 11025
+const MUSIC_SECONDS: float = 12.0
+const CHORDS: Array = [[110.0, 164.81, 220.0, 261.63], [87.31, 130.81, 174.61, 220.0], [130.81, 196.0, 261.63, 329.63], [98.0, 146.83, 196.0, 246.94]]
+var music_streams: Array[AudioStreamWAV] = []
+var music_players: Array[AudioStreamPlayer] = []
+var combat_intensity: float = 0.0
 
 
 func _ready() -> void:
@@ -130,6 +137,7 @@ func play(event: StringName, world_position: Vector2 = Vector2.INF) -> bool:
 	last_played[event] = now
 	if combat:
 		last_combat_time = now
+		combat_intensity = minf(1.0, combat_intensity + 0.06)
 	played_count += 1
 	return true
 
@@ -156,11 +164,99 @@ func bind_button(button: BaseButton) -> void:
 	button.mouse_entered.connect(func():
 		if not button.disabled:
 			play(&"ui_hover")
+			_scale_button(button, 1.05, 0.08)
 	)
+	button.mouse_exited.connect(func(): _scale_button(button, 1.0, 0.1))
+	button.button_down.connect(func(): _scale_button(button, 0.96, 0.05))
+	button.button_up.connect(func(): _scale_button(button, 1.0, 0.1))
 	button.pressed.connect(func(): play(&"ui_click"))
 
 
+func _scale_button(button: BaseButton, target: float, duration: float) -> void:
+	if not button.is_inside_tree():
+		return
+	button.pivot_offset = button.size * 0.5
+	button.create_tween().tween_property(button, "scale", Vector2.ONE * target, duration)
+
+
+func start_music() -> void:
+	if not music_players.is_empty():
+		return
+	if music_streams.is_empty():
+		music_streams = [_synthesize_pad(), _synthesize_combat_layer()]
+	for index in range(2):
+		var player := AudioStreamPlayer.new()
+		player.bus = "SFX"
+		player.stream = music_streams[index]
+		player.volume_db = -26.0 if index == 0 else -60.0
+		add_child(player)
+		player.play()
+		music_players.append(player)
+	combat_intensity = 0.0
+
+
+func stop_music() -> void:
+	for player in music_players:
+		player.stop()
+		player.stream = null
+		player.queue_free()
+	music_players.clear()
+
+
+func _process(delta: float) -> void:
+	if music_players.is_empty():
+		return
+	combat_intensity = maxf(0.0, combat_intensity - delta * 0.12)
+	music_players[1].volume_db = lerpf(-60.0, -22.0, sqrt(combat_intensity))
+	music_players[0].volume_db = lerpf(-26.0, -32.0, combat_intensity)
+
+
+# Every chord window fades in and out through silence, so the loop seam is inaudible.
+func _synthesize_pad() -> AudioStreamWAV:
+	var count: int = int(MUSIC_SECONDS * MUSIC_RATE)
+	var bytes := PackedByteArray()
+	bytes.resize(count * 2)
+	var chord_seconds: float = MUSIC_SECONDS / CHORDS.size()
+	for index in range(count):
+		var seconds: float = float(index) / MUSIC_RATE
+		var chord: Array = CHORDS[mini(int(seconds / chord_seconds), CHORDS.size() - 1)]
+		var window: float = pow(sin(PI * fmod(seconds, chord_seconds) / chord_seconds), 2.0)
+		var sample: float = 0.0
+		for note in chord:
+			sample += sin(TAU * note * seconds) + 0.35 * sin(TAU * note * 2.003 * seconds)
+		bytes.encode_s16(index * 2, clampi(roundi(sample / chord.size() * window * 0.4 * 32767.0), -32768, 32767))
+	return _loop_stream(bytes, count)
+
+
+func _synthesize_combat_layer() -> AudioStreamWAV:
+	var count: int = int(MUSIC_SECONDS * MUSIC_RATE)
+	var bytes := PackedByteArray()
+	bytes.resize(count * 2)
+	var beat: float = 0.75
+	for index in range(count):
+		var seconds: float = float(index) / MUSIC_RATE
+		var since: float = fmod(seconds, beat)
+		var thump: float = sin(TAU * (48.0 + 40.0 * exp(-since * 14.0)) * since) * exp(-since * 7.0)
+		var accent: float = 1.0 if int(seconds / beat) % 4 == 0 else 0.6
+		var drone: float = 0.12 * (sin(TAU * 110.0 * seconds) + sin(TAU * 116.5 * seconds))
+		bytes.encode_s16(index * 2, clampi(roundi((thump * accent * 0.7 + drone) * 32767.0), -32768, 32767))
+	return _loop_stream(bytes, count)
+
+
+func _loop_stream(bytes: PackedByteArray, count: int) -> AudioStreamWAV:
+	var stream := AudioStreamWAV.new()
+	stream.format = AudioStreamWAV.FORMAT_16_BITS
+	stream.mix_rate = MUSIC_RATE
+	stream.stereo = false
+	stream.data = bytes
+	stream.loop_mode = AudioStreamWAV.LOOP_FORWARD
+	stream.loop_begin = 0
+	stream.loop_end = count
+	return stream
+
+
 func stop_all() -> void:
+	stop_music()
 	playback_generation += 1
 	for voice in voices:
 		voice.set_meta("pending", false)

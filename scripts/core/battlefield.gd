@@ -21,6 +21,10 @@ func _ready() -> void:
 	grass_mesh.add_surface_from_arrays(Mesh.PRIMITIVE_TRIANGLES, mesh_arrays)
 	for i in range(320):
 		pebbles.append(Vector2(rng.randf_range(35,bounds.x - 35),rng.randf_range(35,bounds.y - 35)))
+	var overlay := Node2D.new()
+	overlay.set_script(preload("res://scripts/visuals/ambient_overlay.gd"))
+	overlay.bounds = bounds
+	add_child(overlay)
 	queue_redraw()
 
 func _draw() -> void:

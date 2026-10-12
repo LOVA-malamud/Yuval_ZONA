@@ -35,6 +35,7 @@ var travel_path := PackedVector2Array()
 var path_goal := Vector2(INF, INF)
 var blocked_time: float = 0.0
 var hit_flash: float = 0.0
+var lag_health: float = -1.0
 var visual_time: float = 0.0
 var presentation_visible: bool = false
 var character_visual: CharacterVisual
@@ -80,6 +81,12 @@ func tick(delta: float) -> void:
 	else:
 		stun_immunity = maxf(0.0, stun_immunity - delta)
 	var fading_feedback: bool = hit_flash > 0.0 or shot_time > 0.0 or (rally_buff > 0.0 and rally_buff <= delta)
+	# Presentation-only trail behind the health bar after damage.
+	if lag_health > health:
+		lag_health = maxf(health, lag_health - max_health * 0.6 * delta)
+		fading_feedback = true
+	else:
+		lag_health = health
 	visual_time += delta
 	rally_buff = maxf(0.0, rally_buff - delta)
 	hit_flash = maxf(0.0, hit_flash - delta)
@@ -186,6 +193,8 @@ func take_damage(amount: float, attacker_team_id: int, source_commander_id: int 
 	if kind == &"king" and game.coordination != null:
 		game.coordination.king_damage(source_commander_id, minf(health, amount))
 	hit_flash = 0.16
+	if game.presentation_enabled and game.player != null and (attacker_team_id == game.player.team.team_id or (team == game.player.team and category in [&"commander", &"structure"])):
+		game.spawn_number(global_position, Color("ffd36b") if attacker_team_id == game.player.team.team_id else Color("ff6b6b"), str(int(round(amount))))
 	health = maxf(0.0, health - amount)
 	if health <= 0.0:
 		die()
@@ -241,6 +250,8 @@ func travel_toward(destination: Vector2, delta: float) -> void:
 	var motion: Vector2 = direction * minf(effective_move_speed() * delta, global_position.distance_to(waypoint))
 	var before: Vector2 = global_position
 	global_position = game.navigation.move(global_position, motion, body_radius)
+	if game.presentation_enabled and game.player != null and team == game.player.team and (game.session.ticks + match_id) % 22 == 0:
+		game.spawn_effect(global_position + Vector2(0, body_radius * 0.5), Color("b9a37c"), "dust")
 	if before.distance_to(global_position) < move_speed * delta * 0.1 and before.distance_to(destination) > 30.0:
 		blocked_time += delta
 	else:
@@ -294,6 +305,8 @@ func _draw() -> void:
 	if kind in [&"king", &"tower", &"player"] or health < max_health:
 		draw_rect(Rect2(-width/2-1, bar_y-1, width+2, 6), ART.INK)
 		draw_rect(Rect2(-width/2, bar_y, width, 4), Color("513d3b"))
+		if lag_health > health:
+			draw_rect(Rect2(-width/2, bar_y, width * lag_health / max_health, 4), Color("f0d497"))
 		draw_rect(Rect2(-width/2, bar_y, width * health / max_health, 4), tint)
 	if shot_time > 0.0 and tactical_role != &"ranged":
 		var end: Vector2 = to_local(shot_end)

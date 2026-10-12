@@ -6,6 +6,7 @@ var tint: Color = Color.WHITE
 var age: float = 0.0
 var duration: float = 0.45
 var effect: String = "spawn"
+var text: String = ""
 
 func _ready() -> void:
 	game = get_parent()
@@ -22,6 +23,16 @@ func _ready() -> void:
 		duration = 0.28
 	elif effect == "deposit":
 		duration = 0.6
+	elif effect == "number":
+		duration = 0.8
+	elif effect == "ping":
+		duration = 0.35
+	elif effect == "dust":
+		duration = 0.5
+	elif effect == "spark":
+		duration = 0.22
+	elif effect == "embers":
+		duration = 1.1
 
 func _process(delta: float) -> void:
 	# Action effects sample the session clock. Preserve the existing victory
@@ -36,6 +47,30 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var t: float = clampf(age / duration, 0, 1)
 	var color := Color(tint, 1.0 - t)
+	if effect == "number":
+		var font := ThemeDB.fallback_font
+		var pos := Vector2(-font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x * 0.5, -28.0 - 26.0 * t)
+		draw_string_outline(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, 4, Color(0, 0, 0, color.a))
+		draw_string(font, pos, text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)
+		return
+	if effect == "ping":
+		draw_arc(Vector2.ZERO, 34.0 - 14.0 * t, 0.0, TAU, 32, color, 3.0, true)
+		return
+	if effect == "dust":
+		draw_circle(Vector2(-4, -2 - 6 * t), 3.0 + 4.0 * t, Color(tint, 0.45 * (1.0 - t)))
+		draw_circle(Vector2(4, -1 - 4 * t), 2.0 + 3.0 * t, Color(tint, 0.35 * (1.0 - t)))
+		return
+	if effect == "spark":
+		for i in range(5):
+			var dir := Vector2.from_angle(i * TAU / 5 + 0.4)
+			draw_line(dir * (4 + 14 * t), dir * (8 + 20 * t), color, 2.0)
+		return
+	if effect == "embers":
+		for i in range(8):
+			var dir := Vector2.from_angle(i * TAU / 8 + float(i % 3))
+			var p := dir * (10 + 26 * t) + Vector2(0, -50 * t * (0.5 + 0.1 * i))
+			draw_rect(Rect2(p, Vector2(3, 3)), Color(1.0, 0.45 + 0.05 * i, 0.15, 1.0 - t))
+		return
 	if effect == "rally":
 		draw_arc(Vector2.ZERO, 300.0 * t, 0.0, TAU, 48, color, 3.0, true)
 		return
