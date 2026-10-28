@@ -1,5 +1,9 @@
 # CROWNFRONT
 
+**At a glance:** A Godot action-strategy project with simulation and regression tools. Human combat and Android device acceptance are still pending.
+
+[Run from source](#run-from-source) · [Project status](#project-status) · [Player guide](docs/player-guide.md) · [Documentation](docs/README.md)
+
 CROWNFRONT is a local 2D action-strategy game built with Godot 4. Two teams fight across three strategic lanes while sharing a King, resources, upgrades, defenses, and reinforcements. You directly control one Azure commander alongside an AI ally against two coordinated Ember commanders. Destroy the opposing King to win.
 
 ## Gameplay
